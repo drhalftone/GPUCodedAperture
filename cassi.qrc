@@ -1,0 +1,28 @@
+<RCC>
+    <qresource prefix="/Images">
+        <file>Images/CASSIMask.bmp</file>
+    </qresource>
+    <qresource prefix="/Shaders">
+        <file>Shaders/cassiForwardCodedAperture.frag</file>
+        <file>Shaders/cassiForwardDCT.frag</file>
+        <file>Shaders/cassiForwardDWTx.frag</file>
+        <file>Shaders/cassiForwardDWTy.frag</file>
+        <file>Shaders/cassiInverseCodedAperture.frag</file>
+        <file>Shaders/cassiInverseDCT.frag</file>
+        <file>Shaders/cassiInverseDWTx.frag</file>
+        <file>Shaders/cassiInverseDWTy.frag</file>
+        <file>Shaders/cassiMapToVectorU.frag</file>
+        <file>Shaders/cassiMapToVectorV.frag</file>
+        <file>Shaders/cassiVertexShader.vert</file>
+        <file>Shaders/filterCassiDrawPSF.frag</file>
+        <file>Shaders/filterCassiDrawPSF.vert</file>
+        <file>Shaders/filterCassiFindPeak.frag</file>
+        <file>Shaders/filterCassiFindPeak.vert</file>
+        <file>Shaders/filterCassiGaussian.frag</file>
+        <file>Shaders/filterCassiGaussian.vert</file>
+        <file>Shaders/filterCassiMedian.frag</file>
+        <file>Shaders/filterCassiMedian.vert</file>
+        <file>Shaders/filterCassiShiftPSF.frag</file>
+        <file>Shaders/filterCassiShiftPSF.vert</file>
+    </qresource>
+</RCC>
