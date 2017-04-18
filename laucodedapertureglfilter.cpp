@@ -296,12 +296,6 @@ LAUCodedApertureGLFilter::~LAUCodedApertureGLFilter()
         if (spectralMeasurement) {
             delete spectralMeasurement;
         }
-        if (frameBufferObjectU) {
-            delete frameBufferObjectU;
-        }
-        if (frameBufferObjectV) {
-            delete frameBufferObjectV;
-        }
         if (wasInitialized()) {
             vertexArrayObject.release();
         }
@@ -488,12 +482,6 @@ void LAUCodedApertureGLFilter::initializeTextures()
     frameBufferObjectCodedApertureMask = new QOpenGLFramebufferObject(2 * numCols, numRows, frameBufferObjectFormat);
     frameBufferObjectCodedApertureMask->release();
 
-    frameBufferObjectU = new QOpenGLFramebufferObject(2 * numCols, numRows, frameBufferObjectFormat);
-    frameBufferObjectU->release();
-
-    frameBufferObjectV = new QOpenGLFramebufferObject(2 * numCols, numRows, frameBufferObjectFormat);
-    frameBufferObjectV->release();
-
     // CREATE THE FINAL FBO FOR HOLDING THE MONOCHROME OUTPUT
     frameBufferObjectFormat.setInternalTextureFormat(GL_R32F);
     frameBufferObjectCodedAperture = new QOpenGLFramebufferObject(numCols, numRows, frameBufferObjectFormat);
@@ -509,8 +497,6 @@ void LAUCodedApertureGLFilter::initializeParameters()
     frameBufferObjectXYZWRGBAb = NULL;
     frameBufferObjectCodedApertureMask = NULL;
     frameBufferObjectCodedAperture = NULL;
-    frameBufferObjectU = NULL;
-    frameBufferObjectV = NULL;
     spectralMeasurement = NULL;
     dataCube = NULL;
 }
@@ -1272,28 +1258,39 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
 
     // SO LET'S START BY GENERATING OUR CODED APERTURE ENCODING
     LAUScan vectorY = reverseCodedAperture(ideal);
+    vectorY.save("/tmp/vectorY.tif");
 
     // NOW CALCULATE THE INITIAL ESTIMATE (LINE 290 OF GPSR_BB SCRIPT)
     LAUScan vectorXi = forwardTransform(vectorY);
+    vectorXi.save("/tmp/vectorXi.tif");
 
     // CALL METHOD FOR CALCULATING THE INITIAL TAU PARAMETER ACCORDING TO  0.5 * max(abs(AT(y)))
     firstTau = maxAbsValue(vectorXi) / 2.0f;
 
     // INITIALIZE U AND V VECTORS (LINES 345 AND 346 OF GPSR_BB SCRIPT)
-    updateVectorsUV(vectorXi);
+    LAUScan vectorU = computeVectorU(vectorXi);
+    vectorU.save("/tmp/vectorU.tif");
+
+    LAUScan vectorV = computeVectorV(vectorXi);
+    vectorV.save("/tmp/vectorV.tif");
 
     // GET THE NUMBER OF NON-ZERO ELEMENTS IN X (LINE 350 OF GPSR_BB SCRIPT)
     int nonZeroCount = nonZeroElements(vectorXi);
 
     // CALCULATE RESIDUE (LINE 402 OF GPSR_BB SCRIPT)
     LAUScan vectorAofX = reverseTransform(vectorXi);
+    vectorAofX.save("/tmp/vectorAofX.tif");
+
     LAUScan vectorResidue = subtractScans(vectorY, vectorAofX);
+    vectorResidue.save("/tmp/vectorResidue.tif");
 
     // CALCULATE THE GRADIENT BASED ON THE FORWARD TRANSFORM OF THE RESIDUE
     LAUScan vectorGradient = forwardTransform(vectorResidue);
+    vectorGradient.save("/tmp/vectorGradient.tif");
 
     // COMPUTE THE INITIAL GRADIENT AND THE USEFUL QUANTITY RESID_BASE (LINE 452 OF GPSR_BB SCRIPT)
     LAUScan vectorResidueBase = subtractScans(vectorY, vectorResidue);
+    vectorResidueBase.save("/tmp/vectorResidueBase.tif");
 
     // RETURN NOTHING, FOR NOW
     return (LAUScan());
@@ -1302,80 +1299,109 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
-void LAUCodedApertureGLFilter::updateVectorsUV(LAUScan scan)
+LAUScan LAUCodedApertureGLFilter::computeVectorU(LAUScan scan)
 {
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
-    if (scan.colors() == 8)  {
-        if (makeCurrent(surface)) {
-            // COPY FRAME BUFFER TEXTURE FROM GPU TO LOCAL CPU BUFFER
-            dataCube->setData(QOpenGLTexture::RGBA, QOpenGLTexture::Float32, (const void *)scan.constPointer());
-
-            // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
-            // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
-            if (frameBufferObjectU->bind()) {
-                if (programU.bind()) {
-                    if (vertexBuffer.bind()) {
-                        if (indexBuffer.bind()) {
-                            // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                            glViewport(0, 0, frameBufferObjectU->width(), frameBufferObjectU->height());
-                            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-                            // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
-                            glActiveTexture(GL_TEXTURE0);
-                            dataCube->bind();
-                            programU.setUniformValue("qt_texture", 0);
-
-                            // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
-                            glVertexAttribPointer(programU.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
-                            programU.enableAttributeArray("qt_vertex");
-
-                            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-
-                            // RELEASE THE FRAME BUFFER OBJECT AND ITS ASSOCIATED GLSL PROGRAMS
-                            indexBuffer.release();
-                        }
-                        vertexBuffer.release();
-                    }
-                    programU.release();
-                }
-                frameBufferObjectU->release();
-            }
-
-            // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
-            // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
-            if (frameBufferObjectV->bind()) {
-                if (programV.bind()) {
-                    if (vertexBuffer.bind()) {
-                        if (indexBuffer.bind()) {
-                            // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                            glViewport(0, 0, frameBufferObjectV->width(), frameBufferObjectV->height());
-                            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-                            // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
-                            glActiveTexture(GL_TEXTURE0);
-                            dataCube->bind();
-                            programV.setUniformValue("qt_texture", 0);
-
-                            // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
-                            glVertexAttribPointer(programV.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
-                            programV.enableAttributeArray("qt_vertex");
-
-                            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-
-                            // RELEASE THE FRAME BUFFER OBJECT AND ITS ASSOCIATED GLSL PROGRAMS
-                            indexBuffer.release();
-                        }
-                        vertexBuffer.release();
-                    }
-                    programV.release();
-                }
-                frameBufferObjectV->release();
-            }
-
-            // RELEASE THE CURRENT CONTEXT
-            doneCurrent();
-        }
+    if (scan.colors() != 8)  {
+        return (LAUScan());
     }
+
+    // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
+    if (makeCurrent(surface)) {
+        // COPY FRAME BUFFER TEXTURE FROM GPU TO LOCAL CPU BUFFER
+        dataCube->setData(QOpenGLTexture::RGBA, QOpenGLTexture::Float32, (const void *)scan.constPointer());
+
+        // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
+        // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
+        if (frameBufferObjectXYZWRGBAa->bind()) {
+            if (programU.bind()) {
+                if (vertexBuffer.bind()) {
+                    if (indexBuffer.bind()) {
+                        // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
+                        glViewport(0, 0, frameBufferObjectXYZWRGBAa->width(), frameBufferObjectXYZWRGBAa->height());
+                        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+                        // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
+                        glActiveTexture(GL_TEXTURE0);
+                        dataCube->bind();
+                        programU.setUniformValue("qt_texture", 0);
+
+                        // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
+                        glVertexAttribPointer(programU.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+                        programU.enableAttributeArray("qt_vertex");
+
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+                        // RELEASE THE FRAME BUFFER OBJECT AND ITS ASSOCIATED GLSL PROGRAMS
+                        indexBuffer.release();
+                    }
+                    vertexBuffer.release();
+                }
+                programU.release();
+            }
+            frameBufferObjectXYZWRGBAa->release();
+        }
+
+        // DOWNLOAD THE GPU RESULT BACK TO THE CPU
+        glBindTexture(GL_TEXTURE_2D, frameBufferObjectXYZWRGBAa->texture());
+        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
+        doneCurrent();
+    }
+    return (scan);
+}
+
+/****************************************************************************/
+/****************************************************************************/
+/****************************************************************************/
+LAUScan LAUCodedApertureGLFilter::computeVectorV(LAUScan scan)
+{
+    // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
+    if (scan.colors() != 8)  {
+        return (LAUScan());
+    }
+
+    // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
+    if (makeCurrent(surface)) {
+        // COPY FRAME BUFFER TEXTURE FROM GPU TO LOCAL CPU BUFFER
+        dataCube->setData(QOpenGLTexture::RGBA, QOpenGLTexture::Float32, (const void *)scan.constPointer());
+
+        // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
+        // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
+        if (frameBufferObjectXYZWRGBAb->bind()) {
+            if (programV.bind()) {
+                if (vertexBuffer.bind()) {
+                    if (indexBuffer.bind()) {
+                        // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
+                        glViewport(0, 0, frameBufferObjectXYZWRGBAb->width(), frameBufferObjectXYZWRGBAb->height());
+                        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+                        // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
+                        glActiveTexture(GL_TEXTURE0);
+                        dataCube->bind();
+                        programV.setUniformValue("qt_texture", 0);
+
+                        // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
+                        glVertexAttribPointer(programV.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+                        programV.enableAttributeArray("qt_vertex");
+
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+                        // RELEASE THE FRAME BUFFER OBJECT AND ITS ASSOCIATED GLSL PROGRAMS
+                        indexBuffer.release();
+                    }
+                    vertexBuffer.release();
+                }
+                programV.release();
+            }
+            frameBufferObjectXYZWRGBAb->release();
+        }
+
+        // DOWNLOAD THE GPU RESULT BACK TO THE CPU
+        glBindTexture(GL_TEXTURE_2D, frameBufferObjectXYZWRGBAb->texture());
+        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
+        doneCurrent();
+    }
+    return (scan);
 }
 
 /****************************************************************************/
@@ -1454,9 +1480,7 @@ int LAUCodedApertureGLFilter::nonZeroElements(LAUScan scan)
 LAUScan LAUCodedApertureGLFilter::subtractScans(LAUScan scanA, LAUScan scanB)
 {
     // MAKE SURE WE HAVE TWO 8-CHANNEL IMAGES AND THAT THEY ARE BOTH THE SAME SIZE
-    if (scanA.colors() != 8 || scanB.colors() != 8) {
-        return (LAUScan());
-    } else if (scanA.width() != scanB.width() || scanA.height() != scanB.height()) {
+    if (scanA.colors() != scanB.colors() || scanA.width() != scanB.width() || scanA.height() != scanB.height()) {
         return (LAUScan());
     }
 
@@ -1469,19 +1493,44 @@ LAUScan LAUCodedApertureGLFilter::subtractScans(LAUScan scanA, LAUScan scanB)
     float *bufferR = (float *)result.constPointer();
 
     // ITERATE THROUGH EACH PIXEL SUBSTRACTING VECTORS FROM EACHOTHER
-    int index = 0;
-    for (unsigned int row = 0; row < numRows; row++) {
-        for (unsigned int col = 0; col < numCols; col++) {
-            // GRAB THE DIFFERENCE BETWEEN THE NEXT SET OF FOUR FLOATS
-            // AND STORE THE RESULTING VECTORS TO MEMORY
-            _mm_stream_ps(bufferR + index + 0, _mm_sub_ps(_mm_load_ps(bufferA + index + 0), _mm_load_ps(bufferB + index + 0)));
-            _mm_stream_ps(bufferR + index + 4, _mm_sub_ps(_mm_load_ps(bufferA + index + 4), _mm_load_ps(bufferB + index + 4)));
+    if (scanA.colors() == 1) {
+        int index = 0;
+        for (unsigned int row = 0; row < numRows; row++) {
+            for (unsigned int col = 0; col < numCols; col += 4) {
+                // GRAB THE DIFFERENCE BETWEEN THE NEXT SET OF FOUR FLOATS
+                // AND STORE THE RESULTING VECTORS TO MEMORY
+                _mm_stream_ps(bufferR + index, _mm_sub_ps(_mm_load_ps(bufferA + index), _mm_load_ps(bufferB + index)));
 
-            // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
-            index += 8;
+                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
+                index += 4;
+            }
+        }
+    } else if (scanA.colors() == 4) {
+        int index = 0;
+        for (unsigned int row = 0; row < numRows; row++) {
+            for (unsigned int col = 0; col < numCols; col++) {
+                // GRAB THE DIFFERENCE BETWEEN THE NEXT SET OF FOUR FLOATS
+                // AND STORE THE RESULTING VECTORS TO MEMORY
+                _mm_stream_ps(bufferR + index, _mm_sub_ps(_mm_load_ps(bufferA + index), _mm_load_ps(bufferB + index)));
+
+                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
+                index += 4;
+            }
+        }
+    } else if (scanA.colors() == 8) {
+        int index = 0;
+        for (unsigned int row = 0; row < numRows; row++) {
+            for (unsigned int col = 0; col < numCols; col++) {
+                // GRAB THE DIFFERENCE BETWEEN THE NEXT SET OF FOUR FLOATS
+                // AND STORE THE RESULTING VECTORS TO MEMORY
+                _mm_stream_ps(bufferR + index + 0, _mm_sub_ps(_mm_load_ps(bufferA + index + 0), _mm_load_ps(bufferB + index + 0)));
+                _mm_stream_ps(bufferR + index + 4, _mm_sub_ps(_mm_load_ps(bufferA + index + 4), _mm_load_ps(bufferB + index + 4)));
+
+                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
+                index += 8;
+            }
         }
     }
-
     // RETURN THE RESULTING SCAN
     return (result);
 }

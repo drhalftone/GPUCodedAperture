@@ -185,7 +185,6 @@ private:
     QOpenGLShaderProgram programCx, programCy, programDx, programDy;
     QOpenGLShaderProgram programU, programV;
     QOpenGLFramebufferObject *frameBufferObjectXYZWRGBAa, *frameBufferObjectXYZWRGBAb;
-    QOpenGLFramebufferObject *frameBufferObjectU, *frameBufferObjectV;
     QOpenGLFramebufferObject *frameBufferObjectCodedApertureMask, *frameBufferObjectCodedAperture;
 
     static float LoD[16], HiD[16], LoR[16], HiR[16];
@@ -212,7 +211,8 @@ private:
     void initializeTextures();
     void initializeVertices();
 
-    void updateVectorsUV(LAUScan scan);
+    LAUScan computeVectorU(LAUScan scan);
+    LAUScan computeVectorV(LAUScan scan);
 
     LAUScan subtractScans(LAUScan scanA, LAUScan scanB);
     float computeMSE(LAUScan scanA, LAUScan scanB);
