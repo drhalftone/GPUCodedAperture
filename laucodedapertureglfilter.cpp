@@ -1456,7 +1456,7 @@ int LAUCodedApertureGLFilter::nonZeroElements(LAUScan scan)
     __m128i pixVec = _mm_set1_epi32(0);
 
     // WE NEED THIS TO PERFORM THE COMPARE WITH ZERO VALUE OPERATION FOR SINGLE PRECISION FLOATING POINT
-    static const __m128i zerVec = _mm_set1_ps(0.0f);
+    static const __m128 zerVec = _mm_set1_ps(0.0f);
 
     // ITERATE THROUGH EACH PIXEL COMPARING WITH THE ZERO VECTOR AT EACH LOAD
     // AND ADDING THE LOGICAL RESULT TO OUR INTEGER ACCUMULATION VECTOR
@@ -1464,14 +1464,14 @@ int LAUCodedApertureGLFilter::nonZeroElements(LAUScan scan)
     float *buffer = (float *)scan.constPointer();
     for (unsigned int row = 0; row < numRows; row++) {
         for (unsigned int col = 0; col < numCols; col++) {
-            pixVec = _mm_add_epi32(pixVec, _mm_cmpneq_ps(zerVec, _mm_load_ps(buffer + index + 0)));
-            pixVec = _mm_add_epi32(pixVec, _mm_cmpneq_ps(zerVec, _mm_load_ps(buffer + index + 4)));
+            pixVec = _mm_add_epi32(pixVec, _mm_castps_si128(_mm_cmpneq_ps(zerVec, _mm_load_ps(buffer + index + 0))));
+            pixVec = _mm_add_epi32(pixVec, _mm_castps_si128(_mm_cmpneq_ps(zerVec, _mm_load_ps(buffer + index + 4))));
             index += 8;
         }
     }
     pixVec = _mm_hadd_epi32(pixVec, pixVec);
     pixVec = _mm_hadd_epi32(pixVec, pixVec);
-    return (_mm_extract_ps(pixVec, 0));
+    return (_mm_extract_epi32(pixVec, 0));
 }
 
 /****************************************************************************/

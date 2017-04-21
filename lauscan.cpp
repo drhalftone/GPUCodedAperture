@@ -760,6 +760,8 @@ int LAUScan::inspectImage()
     LAUScanInspector dialog(*this, false);
     dialog.setWindowTitle(filename());
     return (dialog.exec());
+#else
+    return(0);
 #endif
 }
 
@@ -808,6 +810,8 @@ bool LAUScan::approveImage(bool *doNotShowAgainCheckBoxEnabled, QWidget *parent)
         dialog.setWindowTitle(this->filename());
         return (dialog.exec() == QDialog::Accepted);
     }
+#else
+    return(false);
 #endif
 }
 
