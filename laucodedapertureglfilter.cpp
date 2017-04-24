@@ -33,6 +33,7 @@
 #include "laucodedapertureglfilter.h"
 #include <locale.h>
 
+
 float LAUCodedApertureGLFilter::LoD[16] = {  -0.00338242,  -0.00054213,   0.03169509,   0.00760749,  -0.14329424,  -0.06127336,   0.48135965,   0.77718575,   0.36444189,  -0.05194584,  -0.02721903,   0.04913718,   0.00380875,  -0.01495226,  -0.00030292,   0.00188995 };
 float LAUCodedApertureGLFilter::HiD[16] = {  -0.00188995,  -0.00030292,   0.01495226,   0.00380875,  -0.04913718,  -0.02721903,   0.05194584,   0.36444189,  -0.77718575,   0.48135965,   0.06127336,  -0.14329424,  -0.00760749,   0.03169509,   0.00054213,  -0.00338242 };
 float LAUCodedApertureGLFilter::LoR[16] = {   0.00188995,  -0.00030292,  -0.01495226,   0.00380875,   0.04913718,  -0.02721903,  -0.05194584,   0.36444189,   0.77718575,   0.48135965,  -0.06127336,  -0.14329424,   0.00760749,   0.03169509,  -0.00054213,  -0.00338242 };
@@ -1240,57 +1241,236 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     }
 
     // INITIALIZE VARIABLES FOR MANAGING GPSR ALGORITHM
-    stopCriterion = SCSmallStepsInNormOfDifference;
+    //stopCriterion = SCSmallStepsInNormOfDifference;
+    stopCriterion = StopCriterion(1);
     initialization = InitAllZeros;
     debias = false;
-    verbose = false;
+    verbose = true;
     monotone = true;
     continuation = false;
-    tolA = 0.01;
+    tolA = 0.5;
     tolD = 0.0001;
     alphaMin = 1e-30;
     alphaMax = 1e30;
     maxIterA = 10000;
-    minIterA = 5;
+    minIterA = 2;
     maxIterD = 200;
     minIterD = 5;
     continuationSteps = 0;
+    lambda = 1;
+    alpha = 1;
+
 
     // SO LET'S START BY GENERATING OUR CODED APERTURE ENCODING
     LAUScan vectorY = reverseCodedAperture(ideal);
-    vectorY.save("/tmp/vectorY.tif");
+    vectorY.save("C:/Users/yuzhang/Documents/MATLAB/vectorY.tif");
 
     // NOW CALCULATE THE INITIAL ESTIMATE (LINE 290 OF GPSR_BB SCRIPT)
     LAUScan vectorXi = forwardTransform(vectorY);
-    vectorXi.save("/tmp/vectorXi.tif");
+    vectorXi.save("C:/Users/yuzhang/Documents/MATLAB/vectorXi.tif");
 
     // CALL METHOD FOR CALCULATING THE INITIAL TAU PARAMETER ACCORDING TO  0.5 * max(abs(AT(y)))
     firstTau = maxAbsValue(vectorXi) / 2.0f;
 
     // INITIALIZE U AND V VECTORS (LINES 345 AND 346 OF GPSR_BB SCRIPT)
     LAUScan vectorU = computeVectorU(vectorXi);
-    vectorU.save("/tmp/vectorU.tif");
+    vectorU.save("C:/Users/yuzhang/Documents/MATLAB/vectorU.tif");
 
     LAUScan vectorV = computeVectorV(vectorXi);
-    vectorV.save("/tmp/vectorV.tif");
+    vectorV.save("C:/Users/yuzhang/Documents/MATLAB/vectorV.tif");
 
     // GET THE NUMBER OF NON-ZERO ELEMENTS IN X (LINE 350 OF GPSR_BB SCRIPT)
     int nonZeroCount = nonZeroElements(vectorXi);
 
+    // GET THE GROUND TRUTH X
+    LAUScan grtruth = forwardDWCTransform(ideal);
+    grtruth.save("C:/Users/yuzhang/Documents/MATLAB/grtruth.tif");
+
     // CALCULATE RESIDUE (LINE 402 OF GPSR_BB SCRIPT)
     LAUScan vectorAofX = reverseTransform(vectorXi);
-    vectorAofX.save("/tmp/vectorAofX.tif");
+    vectorAofX.save("C:/Users/yuzhang/Documents/MATLAB/vectorAofX.tif");
 
     LAUScan vectorResidue = subtractScans(vectorY, vectorAofX);
-    vectorResidue.save("/tmp/vectorResidue.tif");
+    vectorResidue.save("C:/Users/yuzhang/Documents/MATLAB/vectorResidue.tif");
 
-    // CALCULATE THE GRADIENT BASED ON THE FORWARD TRANSFORM OF THE RESIDUE
-    LAUScan vectorGradient = forwardTransform(vectorResidue);
-    vectorGradient.save("/tmp/vectorGradient.tif");
+
+
+    iter = 1;
+    alpha = 1;
+    //COMPUTE INITIAL VALUE OF THE OBJECTIVE FUNCTION
+    f = objectiveFun(vectorResidue, vectorU, vectorV, firstTau);
+    float mse = computeMSE(grtruth,vectorXi);
+    if (verbose){
+        qDebug()<<"Setting firstTau ="<<firstTau;
+        qDebug()<<"Initial MSE ="<<mse;
+        qDebug()<<"Initial obj ="<<f<<", nonzeros ="<<nonZeroCount;
+    }
 
     // COMPUTE THE INITIAL GRADIENT AND THE USEFUL QUANTITY RESID_BASE (LINE 452 OF GPSR_BB SCRIPT)
     LAUScan vectorResidueBase = subtractScans(vectorY, vectorResidue);
-    vectorResidueBase.save("/tmp/vectorResidueBase.tif");
+    vectorResidueBase.save("C:/Users/yuzhang/Documents/MATLAB/vectorResidueBase.tif");
+
+    //CONTROL VARIABLE FOR THE OUTER LOOP AND ITER COUNTER
+    int keep_going = 1;
+
+    while (keep_going)
+    {
+        // CALCULATE THE GRADIENT BASED ON THE FORWARD TRANSFORM OF THE RESIDUE_BASE
+        LAUScan vectorGradient = forwardTransform(vectorResidueBase);
+        vectorGradient.save("C:/Users/yuzhang/Documents/MATLAB/vectorGradient.tif");
+
+        LAUScan scantau = createScan(firstTau, vectorGradient);
+        scantau.save("C:/Users/yuzhang/Documents/MATLAB/scantau.tif");
+        LAUScan term = subtractScans(vectorGradient, vectorXi);
+        term.save("C:/Users/yuzhang/Documents/MATLAB/term.tif");
+        LAUScan gradu = addScans(term, scantau);
+        gradu.save("C:/Users/yuzhang/Documents/MATLAB/gradu.tif");
+        LAUScan gradv = subtractScans(scantau, term);
+        gradv.save("C:/Users/yuzhang/Documents/MATLAB/gradv.tif");
+
+        //PROJECTION AND COMPUTTATION OF SEARCH DIRECTION VECTOR
+        LAUScan du = subtractScans(maxScans(subtractScans(vectorU, multiplyScans(alpha, gradu)), createScan(0, gradu)), vectorU);
+        du.save("C:/Users/yuzhang/Documents/MATLAB/du.tif");
+        LAUScan dv = subtractScans(maxScans(subtractScans(vectorV, multiplyScans(alpha, gradv)), createScan(0, gradv)), vectorV);
+        dv.save("C:/Users/yuzhang/Documents/MATLAB/dv.tif");
+        LAUScan dx = subtractScans(du, dv);
+        dx.save("C:/Users/yuzhang/Documents/MATLAB/dx.tif");
+        LAUScan old_u(vectorU);
+        old_u.save("C:/Users/yuzhang/Documents/MATLAB/old_u.tif");
+        LAUScan old_v(vectorV);
+
+        //CALCULATE USEFUL MATRIX-VECTOR PRODUCT INVOLVING dx (LINE 478 OF GPSR_BB SCRIPT)
+        LAUScan auv = reverseTransform(dx);
+        auv.save("C:/Users/yuzhang/Documents/MATLAB/auv.tif");
+        float dGd = innerProduct(auv, auv);
+
+        if (monotone == true){
+            float lambda0 = - (innerProduct(gradu, du) + innerProduct(gradv, dv))/(1e-20 + dGd);
+            if (lambda0 < 0){
+                qDebug()<<"ERROR: lambda0 = "<<lambda0<<"Negative. Quit";
+                return (LAUScan());
+                }
+            lambda = qMin(lambda0, 1.0f);
+        }
+        else{
+            lambda = 1;
+        }
+
+
+        vectorU = addScans(old_u, multiplyScans(lambda, du));
+        vectorU.save("C:/Users/yuzhang/Documents/MATLAB/vectorU_new.tif");
+        vectorV = addScans(old_v, multiplyScans(lambda, dv));
+        LAUScan UVmin = minScans(vectorU, vectorV);
+        vectorU = subtractScans(vectorU, UVmin);
+        vectorU.save("C:/Users/yuzhang/Documents/MATLAB/vectorU_new1.tif");
+        vectorV = subtractScans(vectorV, UVmin);
+        vectorXi = subtractScans(vectorU, vectorV);
+        vectorXi.save("C:/Users/yuzhang/Documents/MATLAB/vectorXi_new.tif");
+
+        //CALCULATE NONZERO PATTERN AND NUMBER OF NONZEROS
+        int prev_nonZeroCount = nonZeroCount;
+        int nonZeroCount = nonZeroElements(vectorXi);
+
+        //UPDATE RESIDUAL AND FUNCTION
+        LAUScan vectorResidue = subtractScans(subtractScans(vectorY, vectorResidueBase), multiplyScans(lambda, auv));
+        vectorResidue.save("C:/Users/yuzhang/Documents/MATLAB/vectorResidue_new.tif");
+        float prev_f = f;
+        f = objectiveFun(vectorResidue, vectorU, vectorV, firstTau);
+
+        //COMPUTER NEW ALPHA
+        float dd = innerProduct(du, du) + innerProduct(dv, dv);
+        if (dGd <= 0) {
+            qDebug()<<"nonpositive curvature detected dGd = "<<dGd;
+            alpha = alphaMax;
+        }
+        else {
+            alpha = qMin(alphaMax, qMax(alphaMin, dd/dGd));
+        }
+
+        vectorResidueBase = addScans(vectorResidueBase, multiplyScans(lambda, auv));
+
+        if (verbose){
+            qDebug()<<"Iter = "<<iter<<", obj = "<<f<<", alpha = " <<alpha<<", nonezeros = "<< nonZeroCount<<", MSE= "<<mse;
+        }
+
+        iter = iter + 1;
+        mse = computeMSE(grtruth, vectorXi);
+
+        // FINAL RECONSTRUCTED SNAPSHOT ON CASSI BY SOLVED X
+        LAUScan vectorAofX_final = reverseTransform(vectorXi);
+        vectorAofX_final.save("C:/Users/yuzhang/Documents/MATLAB/vectorAofX_final.tif");
+
+        switch (stopCriterion) {
+            // CRITERION BASED ON THE CHANGE OF THE NUMBER OF NONZERO COMPONENTS OF THE ESTIMATION
+            case 0:
+                 {float num_changes_active = prev_nonZeroCount - nonZeroCount;
+                 float criterionActiveSet;
+                 if (nonZeroCount >= 1)
+                     criterionActiveSet = num_changes_active;
+                 else
+                     criterionActiveSet = tolA/2;
+                 keep_going = (criterionActiveSet > tolA);
+                 if (verbose)
+                      qDebug()<<"Delta nonzeros = "<<criterionActiveSet<<"target = "<<tolA;
+                 break;}
+            // CRITERION BASED ON THE RELATIVE VARIATION OF THE OBJECTIVE FUNCTION
+            case 1:
+                 {float criterionObjective= abs(f - prev_f)/prev_f;
+                 keep_going = (criterionObjective > tolA);
+                 if (verbose)
+                     qDebug()<<"Delta obj. = "<<criterionObjective<<"target = "<<tolA;
+                 break;}
+            // CRITERION BASED ON THE RELATIVE NORM OF STEP TAKEN
+            case 2:
+                 {float delta_x_criterion = sqrt(innerProduct(dx, dx))/sqrt(innerProduct(vectorXi, vectorXi));
+                 keep_going = (delta_x_criterion > tolA);
+                 if (verbose)
+                     qDebug()<<"Norm(delta x)/norm(x) = "<<delta_x_criterion<<"target = "<<tolA;
+                 break;}
+            // CRITERION BASED ON "LCP" - AGAIN BASED ON THE PREVIOUS ITERATE. MAKE IT RELATIVE TO THE NORM OF X
+            case 3:
+                 {float CriterionLCP = qMax(maxAbsValue(minScans(gradu, old_u)), maxAbsValue(minScans(gradv, old_v)));
+                 CriterionLCP = CriterionLCP/ qMax(1e-6f, qMax(maxAbsValue(old_u), maxAbsValue(old_v)));
+                 keep_going = (CriterionLCP > tolA);
+                 if (verbose)
+                     qDebug()<<"LCP = "<<CriterionLCP<<"target = "<<tolA;
+                 break;}
+            // CRITERION BASED ON THE TARGET VALUE OF TOLA
+            case 4:
+                 {keep_going = (f > tolA);
+                 if (verbose)
+                     qDebug()<<"Objective = "<<f<<"target = "<<tolA;
+                 break;}
+            // CRITERION BASED ON THE RELATIVE NORM OF STEP TAKEN
+            case 5:
+                 {float delta_x_criterion_dd = sqrt(dd)/sqrt(innerProduct(vectorXi, vectorXi));
+                 keep_going = (delta_x_criterion_dd > tolA);
+                 if (verbose)
+                     qDebug()<<"Norm(delta x)/norm(x) = " <<delta_x_criterion_dd<<"target = "<<tolA;
+                 break;}
+            default:
+                 {qDebug()<<"Unknown stopping criterion";
+                 break;}
+        }
+
+        if (iter < minIterA)
+            keep_going = 1;
+        else if (iter > maxIterA)
+            keep_going = 0;
+
+        if (verbose && keep_going == 0)
+        {
+            qDebug()<<"Finished the main algorithm!";
+            qDebug()<<"Results:";
+            qDebug()<<"||A x - y ||_2^2 =  "<<innerProduct(vectorResidue, vectorResidue);
+            qDebug()<<"||x||_1 = "<< sumAbsValue(vectorU)+ sumAbsValue(vectorV);
+            qDebug()<<"Objective function = "<<f;
+            qDebug()<<"Number of non-zero components = "<<nonZeroCount;
+
+        }
+
+    }
+
 
     // RETURN NOTHING, FOR NOW
     return (LAUScan());
@@ -1404,6 +1584,7 @@ LAUScan LAUCodedApertureGLFilter::computeVectorV(LAUScan scan)
     return (scan);
 }
 
+
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
@@ -1445,6 +1626,43 @@ float LAUCodedApertureGLFilter::maxAbsValue(LAUScan scan)
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
+float LAUCodedApertureGLFilter::sumAbsValue(LAUScan scan)
+{
+    // MAKE SURE WE HAVE AN 8-CHANNEL IMAGE
+    if (scan.colors() != 8) {
+        return (NAN);
+    }
+
+    // CREATE SSE VECTOR TO HOLD THE SUM VALUES OVER TWO VEC4s
+    __m128 sumVec = _mm_set1_ps(0.0f);
+
+    // WE NEED THIS TO PERFORM THE ABSOLUTE VALUE OPERATION FOR SINGLE PRECISION FLOATING POINT
+    static const __m128 sgnVec = _mm_set1_ps(-0.0f);
+
+    // ITERATE THROUGH EACH PIXEL COMPARING WITH THE MAX VECTOR AT EACH LOAD
+    int index = 0;
+    float *buffer = (float *)scan.constPointer();
+    for (unsigned int row = 0; row < numRows; row++) {
+        for (unsigned int col = 0; col < numCols; col++) {
+            sumVec = _mm_add_ps(sumVec, _mm_andnot_ps(sgnVec, _mm_load_ps(buffer + index + 0)));
+            sumVec = _mm_add_ps(sumVec, _mm_andnot_ps(sgnVec, _mm_load_ps(buffer + index + 4)));
+            index += 8;
+        }
+    }
+
+    // EXTRACT THE FLOATS FROM THE VEC4
+    float a, b, c, d;
+    *(int *)&a = _mm_extract_ps(sumVec, 0);
+    *(int *)&b = _mm_extract_ps(sumVec, 1);
+    *(int *)&c = _mm_extract_ps(sumVec, 2);
+    *(int *)&d = _mm_extract_ps(sumVec, 3);
+
+    return (a + b + c + d);
+}
+
+/****************************************************************************/
+/****************************************************************************/
+/****************************************************************************/
 int LAUCodedApertureGLFilter::nonZeroElements(LAUScan scan)
 {
     // MAKE SURE WE HAVE AN 8-CHANNEL IMAGE
@@ -1472,6 +1690,138 @@ int LAUCodedApertureGLFilter::nonZeroElements(LAUScan scan)
     pixVec = _mm_hadd_epi32(pixVec, pixVec);
     pixVec = _mm_hadd_epi32(pixVec, pixVec);
     return (_mm_extract_epi32(pixVec, 0));
+}
+
+/****************************************************************************/
+/****************************************************************************/
+/****************************************************************************/
+float LAUCodedApertureGLFilter::objectiveFun(LAUScan vectorResidue, LAUScan vectorU, LAUScan vectorV, float tau)
+{
+    // MAKE SURE WE HAVE AN 8-CHANNEL IMAGE
+    if (vectorU.colors() != 8 || vectorV.colors() != 8) {
+        return (NAN);
+    }
+
+    float dataterm = 0;
+    float *buffer = (float *)vectorResidue.constPointer();
+    for (unsigned int row = 0; row < numRows; row++) {
+        for (unsigned int col = 0; col < numCols; col++) {
+            // GRAB THE VALUE
+            dataterm += buffer[col]*buffer[col];
+           }
+    }
+
+    // CREATE REGULARIZATION VECTOR TO HOLD THE ACCUMULATED SUM OF REGULARIZATION TERM
+    __m128 reguVecU = _mm_set1_ps(0.0f);
+    __m128 reguVecV = _mm_set1_ps(0.0f);
+
+    // ITERATE THROUGH EACH PIXEL COMPARING WITH THE MAX VECTOR AT EACH LOAD
+    int index = 0;
+    float *bufferA = (float *)vectorU.constPointer();
+    float *bufferB = (float *)vectorV.constPointer();
+    for (unsigned int row = 0; row < numRows; row++) {
+        for (unsigned int col = 0; col < numCols; col++) {
+            // GRAB THE VALUE
+            __m128 pixUA = _mm_load_ps(bufferA + index + 0);
+            __m128 pixUB = _mm_load_ps(bufferA + index + 4);
+
+            __m128 pixVA = _mm_load_ps(bufferB + index + 0);
+            __m128 pixVB = _mm_load_ps(bufferB + index + 4);
+
+            // ADD THE NORML1 TERM
+            reguVecU = _mm_add_ps(reguVecU, _mm_add_ps(pixUA, pixUB));
+            reguVecV = _mm_add_ps(reguVecV, _mm_add_ps(pixVA, pixVB));
+
+            index += 8;
+        }
+    }
+
+    // EXTRACT THE FLOATS FROM THE VEC4
+    float au, bu, cu, du;
+    *(int *)&au = _mm_extract_ps(reguVecU, 0);
+    *(int *)&bu = _mm_extract_ps(reguVecU, 1);
+    *(int *)&cu = _mm_extract_ps(reguVecU, 2);
+    *(int *)&du = _mm_extract_ps(reguVecU, 3);
+
+    float av, bv, cv, dv;
+    *(int *)&av = _mm_extract_ps(reguVecU, 0);
+    *(int *)&bv = _mm_extract_ps(reguVecU, 1);
+    *(int *)&cv = _mm_extract_ps(reguVecU, 2);
+    *(int *)&dv = _mm_extract_ps(reguVecU, 3);
+
+    float f = 0.5 * dataterm + tau * (au + bu + cu + du + av + bv + cv + dv);
+
+    // FIND THE LARGEST SCALAR VALUE
+    return (f);
+
+}
+/****************************************************************************/
+/****************************************************************************/
+/****************************************************************************/
+float LAUCodedApertureGLFilter::innerProduct(LAUScan scanA, LAUScan scanB)
+{
+    // MAKE SURE WE HAVE TWO 8-CHANNEL IMAGES AND THAT THEY ARE BOTH THE SAME SIZE
+    if (scanA.colors() != scanB.colors() || scanA.width() != scanB.width() || scanA.height() != scanB.height()) {
+        return (NAN);
+    }
+
+    // CREATE SSE VECTOR TO HOLD THE ACCUMULATED SUM OF ERRORS
+    __m128 sumVec = _mm_set1_ps(0.0f);
+
+    // GRAB THE POINTERS TO THE TWO INPUT BUFFERS AND THE OUTPUT BUFFER
+    float *bufferA = (float *)scanA.constPointer();
+    float *bufferB = (float *)scanB.constPointer();
+
+    // ITERATE THROUGH EACH PIXEL ADDING VECTORS FROM EACHOTHER
+    if (scanA.colors() == 1) {
+        int index = 0;
+        for (unsigned int row = 0; row < numRows; row++) {
+            for (unsigned int col = 0; col < numCols; col += 4) {
+                // GRAB THE VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
+                // AND STORE THE RESULTING VECTORS TO MEMORY
+                sumVec = _mm_add_ps(sumVec, _mm_mul_ps(_mm_load_ps(bufferA + index), _mm_load_ps(bufferB + index)));
+
+                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
+                index += 4;
+
+            }
+        }
+    } else if (scanA.colors() == 4) {
+        int index = 0;
+        for (unsigned int row = 0; row < numRows; row++) {
+            for (unsigned int col = 0; col < numCols; col++) {
+                // GRAB THE VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
+                // AND STORE THE RESULTING VECTORS TO MEMORY
+                sumVec = _mm_add_ps(sumVec, _mm_mul_ps(_mm_load_ps(bufferA + index), _mm_load_ps(bufferB + index)));
+
+                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
+                index += 4;
+            }
+        }
+    } else if (scanA.colors() == 8) {
+        int index = 0;
+        for (unsigned int row = 0; row < numRows; row++) {
+            for (unsigned int col = 0; col < numCols; col++) {
+                // GRAB THE VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
+                // AND STORE THE RESULTING VECTORS TO MEMORY
+                sumVec = _mm_add_ps(sumVec, _mm_mul_ps(_mm_load_ps(bufferA + index + 0), _mm_load_ps(bufferB + index + 0)));
+                sumVec = _mm_add_ps(sumVec, _mm_mul_ps(_mm_load_ps(bufferA + index + 4), _mm_load_ps(bufferB + index + 4)));
+
+                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
+                index += 8;
+            }
+        }
+    }
+    // EXTRACT THE FLOATS FROM THE VEC4
+    float a, b, c, d;
+    *(int *)&a = _mm_extract_ps(sumVec, 0);
+    *(int *)&b = _mm_extract_ps(sumVec, 1);
+    *(int *)&c = _mm_extract_ps(sumVec, 2);
+    *(int *)&d = _mm_extract_ps(sumVec, 3);
+
+    // FIND THE LARGEST SCALAR VALUE
+    return (a + b + c + d);
+
 }
 
 /****************************************************************************/
@@ -1525,6 +1875,302 @@ LAUScan LAUCodedApertureGLFilter::subtractScans(LAUScan scanA, LAUScan scanB)
                 // AND STORE THE RESULTING VECTORS TO MEMORY
                 _mm_stream_ps(bufferR + index + 0, _mm_sub_ps(_mm_load_ps(bufferA + index + 0), _mm_load_ps(bufferB + index + 0)));
                 _mm_stream_ps(bufferR + index + 4, _mm_sub_ps(_mm_load_ps(bufferA + index + 4), _mm_load_ps(bufferB + index + 4)));
+
+                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
+                index += 8;
+            }
+        }
+    }
+    // RETURN THE RESULTING SCAN
+    return (result);
+}
+
+/****************************************************************************/
+/****************************************************************************/
+/****************************************************************************/
+LAUScan LAUCodedApertureGLFilter::addScans(LAUScan scanA, LAUScan scanB)
+{
+    // MAKE SURE WE HAVE TWO 8-CHANNEL IMAGES AND THAT THEY ARE BOTH THE SAME SIZE
+    if (scanA.colors() != scanB.colors() || scanA.width() != scanB.width() || scanA.height() != scanB.height()) {
+        return (LAUScan());
+    }
+
+    // CREATE AN OUTPUT SCAN
+    LAUScan result = LAUScan(scanA.width(), scanA.height(), scanA.color());
+
+    // GRAB THE POINTERS TO THE TWO INPUT BUFFERS AND THE OUTPUT BUFFER
+    float *bufferA = (float *)scanA.constPointer();
+    float *bufferB = (float *)scanB.constPointer();
+    float *bufferR = (float *)result.constPointer();
+
+    // ITERATE THROUGH EACH PIXEL ADDING VECTORS FROM EACHOTHER
+    if (scanA.colors() == 1) {
+        int index = 0;
+        for (unsigned int row = 0; row < numRows; row++) {
+            for (unsigned int col = 0; col < numCols; col += 4) {
+                // GRAB THE VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
+                // AND STORE THE RESULTING VECTORS TO MEMORY
+                _mm_stream_ps(bufferR + index, _mm_add_ps(_mm_load_ps(bufferA + index), _mm_load_ps(bufferB + index)));
+
+                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
+                index += 4;
+            }
+        }
+    } else if (scanA.colors() == 4) {
+        int index = 0;
+        for (unsigned int row = 0; row < numRows; row++) {
+            for (unsigned int col = 0; col < numCols; col++) {
+                // GRAB THE VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
+                // AND STORE THE RESULTING VECTORS TO MEMORY
+                _mm_stream_ps(bufferR + index, _mm_add_ps(_mm_load_ps(bufferA + index), _mm_load_ps(bufferB + index)));
+
+                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
+                index += 4;
+            }
+        }
+    } else if (scanA.colors() == 8) {
+        int index = 0;
+        for (unsigned int row = 0; row < numRows; row++) {
+            for (unsigned int col = 0; col < numCols; col++) {
+                // GRAB THE VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
+                // AND STORE THE RESULTING VECTORS TO MEMORY
+                _mm_stream_ps(bufferR + index + 0, _mm_add_ps(_mm_load_ps(bufferA + index + 0), _mm_load_ps(bufferB + index + 0)));
+                _mm_stream_ps(bufferR + index + 4, _mm_add_ps(_mm_load_ps(bufferA + index + 4), _mm_load_ps(bufferB + index + 4)));
+
+                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
+                index += 8;
+            }
+        }
+    }
+    // RETURN THE RESULTING SCAN
+    return (result);
+}
+
+/****************************************************************************/
+/****************************************************************************/
+/****************************************************************************/
+LAUScan LAUCodedApertureGLFilter::multiplyScans(float scalar, LAUScan scanA)
+{
+
+    // CREATE AN OUTPUT SCAN
+    LAUScan result = LAUScan(scanA.width(), scanA.height(), scanA.color());
+    // CREATE SSE VECTOR TO HOLD THE SCALARVEC
+    __m128 scalarVec = _mm_set1_ps(scalar);
+
+    // GRAB THE POINTERS TO THE TWO INPUT BUFFERS AND THE OUTPUT BUFFER
+    float *bufferA = (float *)scanA.constPointer();
+    float *bufferR = (float *)result.constPointer();
+
+    // ITERATE THROUGH EACH PIXEL SUBSTRACTING VECTORS FROM EACHOTHER
+    if (scanA.colors() == 1) {
+        int index = 0;
+        for (unsigned int row = 0; row < numRows; row++) {
+            for (unsigned int col = 0; col < numCols; col += 4) {
+                // GRAB THE VALUE
+                // AND STORE THE RESULTING VECTORS TO MEMORY
+                _mm_stream_ps(bufferR + index, _mm_mul_ps(_mm_load_ps(bufferA + index), scalarVec));
+
+                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
+                index += 4;
+            }
+        }
+    } else if (scanA.colors() == 4) {
+        int index = 0;
+        for (unsigned int row = 0; row < numRows; row++) {
+            for (unsigned int col = 0; col < numCols; col++) {
+                // GRAB THE VALUE
+                // AND STORE THE RESULTING VECTORS TO MEMORY
+                _mm_stream_ps(bufferR + index, _mm_mul_ps(_mm_load_ps(bufferA + index), scalarVec));
+
+                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
+                index += 4;
+            }
+        }
+    } else if (scanA.colors() == 8) {
+        int index = 0;
+        for (unsigned int row = 0; row < numRows; row++) {
+            for (unsigned int col = 0; col < numCols; col++) {
+                // GRAB THE VALUE
+                // AND STORE THE RESULTING VECTORS TO MEMORY
+                _mm_stream_ps(bufferR + index + 0, _mm_mul_ps(_mm_load_ps(bufferA + index + 0), scalarVec));
+                _mm_stream_ps(bufferR + index + 4, _mm_mul_ps(_mm_load_ps(bufferA + index + 4), scalarVec));
+
+                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
+                index += 8;
+            }
+        }
+    }
+    // RETURN THE RESULTING SCAN
+    return (result);
+}
+/****************************************************************************/
+/****************************************************************************/
+/****************************************************************************/
+LAUScan LAUCodedApertureGLFilter::maxScans(LAUScan scanA, LAUScan scanB)
+{
+    // MAKE SURE WE HAVE TWO 8-CHANNEL IMAGES AND THAT THEY ARE BOTH THE SAME SIZE
+    if (scanA.colors() != scanB.colors() || scanA.width() != scanB.width() || scanA.height() != scanB.height()) {
+        return (LAUScan());
+    }
+
+    // CREATE AN OUTPUT SCAN
+    LAUScan result = LAUScan(scanA.width(), scanA.height(), scanA.color());
+
+    // GRAB THE POINTERS TO THE TWO INPUT BUFFERS AND THE OUTPUT BUFFER
+    float *bufferA = (float *)scanA.constPointer();
+    float *bufferB = (float *)scanB.constPointer();
+    float *bufferR = (float *)result.constPointer();
+
+    // ITERATE THROUGH EACH PIXEL ADDING VECTORS FROM EACHOTHER
+    if (scanA.colors() == 1) {
+        int index = 0;
+        for (unsigned int row = 0; row < numRows; row++) {
+            for (unsigned int col = 0; col < numCols; col += 4) {
+                // GRAB THE MAX VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
+                // AND STORE THE RESULTING VECTORS TO MEMORY
+                _mm_stream_ps(bufferR + index, _mm_max_ps(_mm_load_ps(bufferA + index), _mm_load_ps(bufferB + index)));
+
+                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
+                index += 4;
+            }
+        }
+    } else if (scanA.colors() == 4) {
+        int index = 0;
+        for (unsigned int row = 0; row < numRows; row++) {
+            for (unsigned int col = 0; col < numCols; col++) {
+                // GRAB THE MAX VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
+                // AND STORE THE RESULTING VECTORS TO MEMORY
+                _mm_stream_ps(bufferR + index, _mm_max_ps(_mm_load_ps(bufferA + index), _mm_load_ps(bufferB + index)));
+
+                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
+                index += 4;
+            }
+        }
+    } else if (scanA.colors() == 8) {
+        int index = 0;
+        for (unsigned int row = 0; row < numRows; row++) {
+            for (unsigned int col = 0; col < numCols; col++) {
+                // GRAB THE MAX VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
+                // AND STORE THE RESULTING VECTORS TO MEMORY
+                _mm_stream_ps(bufferR + index + 0, _mm_max_ps(_mm_load_ps(bufferA + index + 0), _mm_load_ps(bufferB + index + 0)));
+                _mm_stream_ps(bufferR + index + 4, _mm_max_ps(_mm_load_ps(bufferA + index + 4), _mm_load_ps(bufferB + index + 4)));
+
+                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
+                index += 8;
+            }
+        }
+    }
+    // RETURN THE RESULTING SCAN
+    return (result);
+}
+
+/****************************************************************************/
+/****************************************************************************/
+/****************************************************************************/
+LAUScan LAUCodedApertureGLFilter::minScans(LAUScan scanA, LAUScan scanB)
+{
+    // MAKE SURE WE HAVE TWO 8-CHANNEL IMAGES AND THAT THEY ARE BOTH THE SAME SIZE
+    if (scanA.colors() != scanB.colors() || scanA.width() != scanB.width() || scanA.height() != scanB.height()) {
+        return (LAUScan());
+    }
+
+    // CREATE AN OUTPUT SCAN
+    LAUScan result = LAUScan(scanA.width(), scanA.height(), scanA.color());
+
+    // GRAB THE POINTERS TO THE TWO INPUT BUFFERS AND THE OUTPUT BUFFER
+    float *bufferA = (float *)scanA.constPointer();
+    float *bufferB = (float *)scanB.constPointer();
+    float *bufferR = (float *)result.constPointer();
+
+    // ITERATE THROUGH EACH PIXEL ADDING VECTORS FROM EACHOTHER
+    if (scanA.colors() == 1) {
+        int index = 0;
+        for (unsigned int row = 0; row < numRows; row++) {
+            for (unsigned int col = 0; col < numCols; col += 4) {
+                // GRAB THE MIN VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
+                // AND STORE THE RESULTING VECTORS TO MEMORY
+                _mm_stream_ps(bufferR + index, _mm_min_ps(_mm_load_ps(bufferA + index), _mm_load_ps(bufferB + index)));
+
+                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
+                index += 4;
+            }
+        }
+    } else if (scanA.colors() == 4) {
+        int index = 0;
+        for (unsigned int row = 0; row < numRows; row++) {
+            for (unsigned int col = 0; col < numCols; col++) {
+                // GRAB THE MIN VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
+                // AND STORE THE RESULTING VECTORS TO MEMORY
+                _mm_stream_ps(bufferR + index, _mm_min_ps(_mm_load_ps(bufferA + index), _mm_load_ps(bufferB + index)));
+
+                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
+                index += 4;
+            }
+        }
+    } else if (scanA.colors() == 8) {
+        int index = 0;
+        for (unsigned int row = 0; row < numRows; row++) {
+            for (unsigned int col = 0; col < numCols; col++) {
+                // GRAB THE MIN VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
+                // AND STORE THE RESULTING VECTORS TO MEMORY
+                _mm_stream_ps(bufferR + index + 0, _mm_min_ps(_mm_load_ps(bufferA + index + 0), _mm_load_ps(bufferB + index + 0)));
+                _mm_stream_ps(bufferR + index + 4, _mm_min_ps(_mm_load_ps(bufferA + index + 4), _mm_load_ps(bufferB + index + 4)));
+
+                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
+                index += 8;
+            }
+        }
+    }
+    // RETURN THE RESULTING SCAN
+    return (result);
+}
+
+/****************************************************************************/
+/****************************************************************************/
+/****************************************************************************/
+LAUScan LAUCodedApertureGLFilter::createScan(float tau, LAUScan referscan)
+{
+
+    // CREATE AN OUTPUT SCAN
+    LAUScan result = LAUScan(referscan.width(), referscan.height(), referscan.color());
+
+    // GRAB THE POINTERS TO THE OUTPUT BUFFER
+    float *bufferR = (float *)result.constPointer();
+
+    __m128 valueVec = _mm_set1_ps(tau);
+    // ITERATE THROUGH EACH PIXEL ADDING VECTORS FROM EACHOTHER
+    if (referscan.color() == 1) {
+        int index = 0;
+        for (unsigned int row = 0; row < numRows; row++) {
+            for (unsigned int col = 0; col < numCols; col += 4) {
+                // FILL IN THE NEW LAUSCAN OBJECT
+                // AND STORE THE RESULTING VECTORS TO MEMORY
+                _mm_stream_ps(bufferR + index, valueVec);
+
+                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
+                index += 4;
+            }
+        }
+    } else if (referscan.colors() == 4) {
+        int index = 0;
+        for (unsigned int row = 0; row < numRows; row++) {
+            for (unsigned int col = 0; col < numCols; col++) {
+                // FILL IN THE NEW LAUSCAN OBJECT
+                // AND STORE THE RESULTING VECTORS TO MEMORY
+                _mm_stream_ps(bufferR + index, valueVec);
+
+                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
+                index += 4;
+            }
+        }
+    } else if (referscan.color() == 8) {
+        int index = 0;
+        for (unsigned int row = 0; row < numRows; row++) {
+            for (unsigned int col = 0; col < numCols; col++) {
+                // FILL IN THE NEW LAUSCAN OBJECT
+                // AND STORE THE RESULTING VECTORS TO MEMORY
+                _mm_stream_ps(bufferR + index + 0, valueVec);
+                _mm_stream_ps(bufferR + index + 4, valueVec);
 
                 // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
                 index += 8;

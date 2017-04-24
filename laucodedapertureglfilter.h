@@ -205,6 +205,12 @@ private:
     unsigned int maxIterD;          // maximum number of iterations allowed in the debising phase of the algorithm. Default = 200
     unsigned int minIterD;          // minimum number of iterations allowed in the debiasing phase of the algorithm. Default = 5
     unsigned int continuationSteps; // Number of steps in the continuation procedure, Default = 0
+    unsigned int iter;
+    float alpha;
+    float lambda;
+    float f;                        // object function;
+
+
 
     void initializeParameters();
     void initializeShaders();
@@ -215,9 +221,18 @@ private:
     LAUScan computeVectorV(LAUScan scan);
 
     LAUScan subtractScans(LAUScan scanA, LAUScan scanB);
+    LAUScan addScans(LAUScan scanA, LAUScan scanB);
+    LAUScan multiplyScans(float scalar, LAUScan scanB);
+    LAUScan createScan(float tau, LAUScan referscan);
+    LAUScan maxScans(LAUScan scanA, LAUScan scanB);
+    LAUScan minScans(LAUScan scanA, LAUScan scanB);
     float computeMSE(LAUScan scanA, LAUScan scanB);
+    float innerProduct(LAUScan scanA, LAUScan scanB);
+    float objectiveFun(LAUScan vectorResidue, LAUScan vectorU, LAUScan vectorV, float tau);
     float maxAbsValue(LAUScan scan);
+    float sumAbsValue(LAUScan scan);
     int nonZeroElements(LAUScan scan);
+
 };
 
 /****************************************************************************/
