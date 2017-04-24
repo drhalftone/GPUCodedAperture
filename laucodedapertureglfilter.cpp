@@ -1396,9 +1396,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
         iter = iter + 1;
         mse = computeMSE(grtruth, vectorXi);
 
-        // FINAL RECONSTRUCTED SNAPSHOT ON CASSI BY SOLVED X
-        LAUScan vectorAofX_final = reverseTransform(vectorXi);
-        vectorAofX_final.save("C:/Users/yuzhang/Documents/MATLAB/vectorAofX_final.tif");
+
 
         switch (stopCriterion) {
             // CRITERION BASED ON THE CHANGE OF THE NUMBER OF NONZERO COMPONENTS OF THE ESTIMATION
