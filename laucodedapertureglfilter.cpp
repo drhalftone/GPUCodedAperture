@@ -1253,7 +1253,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     alphaMin = 1e-30;
     alphaMax = 1e30;
     maxIterA = 10000;
-    minIterA = 2;
+    minIterA = 5;
     maxIterD = 200;
     minIterD = 5;
     continuationSteps = 0;
@@ -1269,8 +1269,13 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     LAUScan vectorXi = forwardTransform(vectorY);
     vectorXi.save("C:/Users/yuzhang/Documents/MATLAB/vectorXi.tif");
 
+    //FOR DEBUG
+    LAUScan reconsIdeal = forwardCodedAperture(vectorY);
+    reconsIdeal.save("C:/Users/yuzhang/Documents/MATLAB/reconsIdeal.tif");
+
     // CALL METHOD FOR CALCULATING THE INITIAL TAU PARAMETER ACCORDING TO  0.5 * max(abs(AT(y)))
     firstTau = maxAbsValue(vectorXi) / 2.0f;
+    //firstTau = 0.35;
 
     // INITIALIZE U AND V VECTORS (LINES 345 AND 346 OF GPSR_BB SCRIPT)
     LAUScan vectorU = computeVectorU(vectorXi);
@@ -1297,7 +1302,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
 
     iter = 1;
     alpha = 1;
-    //COMPUTE INITIAL VALUE OF THE OBJECTIVE FUNCTION
+    //COMPUTE INITIAL VALUE OF THE OBJECTIVE FUNCTION (LINE 438 OF GPSR_BB SCRIPT)
     f = objectiveFun(vectorResidue, vectorU, vectorV, firstTau);
     float mse = computeMSE(grtruth,vectorXi);
     if (verbose){
@@ -1313,9 +1318,10 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     //CONTROL VARIABLE FOR THE OUTER LOOP AND ITER COUNTER
     int keep_going = 1;
 
+    //(LINE 461 OF GPSR_BB SCRIPT)
     while (keep_going)
     {
-        // CALCULATE THE GRADIENT BASED ON THE FORWARD TRANSFORM OF THE RESIDUE_BASE
+        // CALCULATE THE GRADIENT BASED ON THE FORWARD TRANSFORM OF THE RESIDUE_BASE(LINE 464 OF GPSR_BB SCRIPT)
         LAUScan vectorGradient = forwardTransform(vectorResidueBase);
         vectorGradient.save("C:/Users/yuzhang/Documents/MATLAB/vectorGradient.tif");
 
@@ -1328,7 +1334,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
         LAUScan gradv = subtractScans(scantau, term);
         gradv.save("C:/Users/yuzhang/Documents/MATLAB/gradv.tif");
 
-        //PROJECTION AND COMPUTTATION OF SEARCH DIRECTION VECTOR
+        //PROJECTION AND COMPUTTATION OF SEARCH DIRECTION VECTOR(LINE 471 OF GPSR_BB SCRIPT)
         LAUScan du = subtractScans(maxScans(subtractScans(vectorU, multiplyScans(alpha, gradu)), createScan(0, gradu)), vectorU);
         du.save("C:/Users/yuzhang/Documents/MATLAB/du.tif");
         LAUScan dv = subtractScans(maxScans(subtractScans(vectorV, multiplyScans(alpha, gradv)), createScan(0, gradv)), vectorV);
@@ -1356,7 +1362,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
             lambda = 1;
         }
 
-
+        //(LINE 494 OF GPSR_BB SCRIPT)
         vectorU = addScans(old_u, multiplyScans(lambda, du));
         vectorU.save("C:/Users/yuzhang/Documents/MATLAB/vectorU_new.tif");
         vectorV = addScans(old_v, multiplyScans(lambda, dv));
@@ -1367,17 +1373,17 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
         vectorXi = subtractScans(vectorU, vectorV);
         vectorXi.save("C:/Users/yuzhang/Documents/MATLAB/vectorXi_new.tif");
 
-        //CALCULATE NONZERO PATTERN AND NUMBER OF NONZEROS
+        //CALCULATE NONZERO PATTERN AND NUMBER OF NONZEROS(LINE 502 OF GPSR_BB SCRIPT)
         int prev_nonZeroCount = nonZeroCount;
         int nonZeroCount = nonZeroElements(vectorXi);
 
-        //UPDATE RESIDUAL AND FUNCTION
+        //UPDATE RESIDUAL AND FUNCTION(LINE 507 OF GPSR_BB SCRIPT)
         LAUScan vectorResidue = subtractScans(subtractScans(vectorY, vectorResidueBase), multiplyScans(lambda, auv));
         vectorResidue.save("C:/Users/yuzhang/Documents/MATLAB/vectorResidue_new.tif");
         float prev_f = f;
         f = objectiveFun(vectorResidue, vectorU, vectorV, firstTau);
 
-        //COMPUTER NEW ALPHA
+        //COMPUTER NEW ALPHA(LINE 513 OF GPSR_BB SCRIPT)
         float dd = innerProduct(du, du) + innerProduct(dv, dv);
         if (dGd <= 0) {
             qDebug()<<"nonpositive curvature detected dGd = "<<dGd;
@@ -1393,11 +1399,15 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
             qDebug()<<"Iter = "<<iter<<", obj = "<<f<<", alpha = " <<alpha<<", nonezeros = "<< nonZeroCount<<", MSE= "<<mse;
         }
 
+        // UPDATE ITERATION COUNTS (LINE 530 OF GPSR_BB SCRIPT)
         iter = iter + 1;
         mse = computeMSE(grtruth, vectorXi);
 
+        // FINAL RECONSTRUCTED SNAPSHOT ON CASSI BY SOLVED X
+        LAUScan vectorAofX_final = reverseTransform(vectorXi);
+        vectorAofX_final.save("C:/Users/yuzhang/Documents/MATLAB/vectorAofX_final.tif");
 
-
+        //(LINE 539 OF GPSR_BB SCRIPT)
         switch (stopCriterion) {
             // CRITERION BASED ON THE CHANGE OF THE NUMBER OF NONZERO COMPONENTS OF THE ESTIMATION
             case 0:
