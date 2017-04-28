@@ -180,12 +180,12 @@ private:
     QSurface *surface;
     QOpenGLBuffer vertexBuffer, indexBuffer;
     QOpenGLVertexArrayObject vertexArrayObject;
-    QOpenGLTexture *dataCube, *spectralMeasurement;
+    QOpenGLTexture *dataCube, *spectralMeasurement, *codedAperture;
     QOpenGLShaderProgram programAx, programAy, programBx, programBy;
-    QOpenGLShaderProgram programCx, programCy, programDx, programDy;
+    QOpenGLShaderProgram programCx, programCy, programDw, programDx, programDy;
     QOpenGLShaderProgram programU, programV;
     QOpenGLFramebufferObject *frameBufferObjectXYZWRGBAa, *frameBufferObjectXYZWRGBAb;
-    QOpenGLFramebufferObject *frameBufferObjectCodedApertureMask, *frameBufferObjectCodedAperture;
+    QOpenGLFramebufferObject *frameBufferObjectCodedApertureMask, *frameBufferObjectCodedAperture, *frameBufferObjectCodedApertureWeights;
 
     static float LoD[16], HiD[16], LoR[16], HiR[16];
 

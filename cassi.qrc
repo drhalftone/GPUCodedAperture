@@ -7,10 +7,6 @@
         <file>Shaders/cassiForwardDCT.frag</file>
         <file>Shaders/cassiForwardDWTx.frag</file>
         <file>Shaders/cassiForwardDWTy.frag</file>
-        <file>Shaders/cassiInverseCodedAperture.frag</file>
-        <file>Shaders/cassiInverseDCT.frag</file>
-        <file>Shaders/cassiInverseDWTx.frag</file>
-        <file>Shaders/cassiInverseDWTy.frag</file>
         <file>Shaders/cassiMapToVectorU.frag</file>
         <file>Shaders/cassiMapToVectorV.frag</file>
         <file>Shaders/cassiVertexShader.vert</file>
@@ -24,5 +20,10 @@
         <file>Shaders/filterCassiMedian.vert</file>
         <file>Shaders/filterCassiShiftPSF.frag</file>
         <file>Shaders/filterCassiShiftPSF.vert</file>
+        <file>Shaders/cassiBuildCodedAperture.frag</file>
+        <file>Shaders/cassiReverseCodedAperture.frag</file>
+        <file>Shaders/cassiReverseDCT.frag</file>
+        <file>Shaders/cassiReverseDWTx.frag</file>
+        <file>Shaders/cassiReverseDWTy.frag</file>
     </qresource>
 </RCC>
