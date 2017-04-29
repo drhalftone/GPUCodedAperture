@@ -33,7 +33,6 @@
 #include "laucodedapertureglfilter.h"
 #include <locale.h>
 
-
 float LAUCodedApertureGLFilter::LoD[16] = {  -0.00338242,  -0.00054213,   0.03169509,   0.00760749,  -0.14329424,  -0.06127336,   0.48135965,   0.77718575,   0.36444189,  -0.05194584,  -0.02721903,   0.04913718,   0.00380875,  -0.01495226,  -0.00030292,   0.00188995 };
 float LAUCodedApertureGLFilter::HiD[16] = {  -0.00188995,  -0.00030292,   0.01495226,   0.00380875,  -0.04913718,  -0.02721903,   0.05194584,   0.36444189,  -0.77718575,   0.48135965,   0.06127336,  -0.14329424,  -0.00760749,   0.03169509,   0.00054213,  -0.00338242 };
 float LAUCodedApertureGLFilter::LoR[16] = {   0.00188995,  -0.00030292,  -0.01495226,   0.00380875,   0.04913718,  -0.02721903,  -0.05194584,   0.36444189,   0.77718575,   0.48135965,  -0.06127336,  -0.14329424,   0.00760749,   0.03169509,  -0.00054213,  -0.00338242 };
@@ -285,14 +284,14 @@ LAUCodedApertureGLFilter::~LAUCodedApertureGLFilter()
         if (frameBufferObjectXYZWRGBAb) {
             delete frameBufferObjectXYZWRGBAb;
         }
-        if (frameBufferObjectCodedApertureMask) {
-            delete frameBufferObjectCodedApertureMask;
-        }
         if (frameBufferObjectCodedAperture) {
             delete frameBufferObjectCodedAperture;
         }
-        if (frameBufferObjectCodedApertureWeights) {
-            delete frameBufferObjectCodedApertureWeights;
+        if (frameBufferObjectCodedApertureLeft) {
+            delete frameBufferObjectCodedApertureLeft;
+        }
+        if (frameBufferObjectCodedApertureRight) {
+            delete frameBufferObjectCodedApertureRight;
         }
         if (dataCube) {
             delete dataCube;
@@ -435,7 +434,7 @@ void LAUCodedApertureGLFilter::initializeShaders()
     programCy.link();
 
     programDw.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
-    programDw.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiBuildCodedAperture.frag");
+    programDw.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiBuildCodedApertureLeft.frag");
     programDw.link();
 
     programDx.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
@@ -445,6 +444,10 @@ void LAUCodedApertureGLFilter::initializeShaders()
     programDy.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
     programDy.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiReverseCodedAperture.frag");
     programDy.link();
+
+    programDz.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
+    programDz.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiBuildCodedApertureRight.frag");
+    programDz.link();
 
     programU.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
     programU.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiMapToVectorU.frag");
@@ -490,16 +493,16 @@ void LAUCodedApertureGLFilter::initializeTextures()
     frameBufferObjectXYZWRGBAb = new QOpenGLFramebufferObject(2 * numCols, numRows, frameBufferObjectFormat);
     frameBufferObjectXYZWRGBAb->release();
 
-    frameBufferObjectCodedApertureMask = new QOpenGLFramebufferObject(2 * numCols, numRows, frameBufferObjectFormat);
-    frameBufferObjectCodedApertureMask->release();
+    frameBufferObjectCodedApertureLeft = new QOpenGLFramebufferObject(2 * numCols, numRows, frameBufferObjectFormat);
+    frameBufferObjectCodedApertureLeft->release();
+
+    frameBufferObjectCodedApertureRight = new QOpenGLFramebufferObject(2 * numCols, numRows, frameBufferObjectFormat);
+    frameBufferObjectCodedApertureRight->release();
 
     // CREATE THE FINAL FBO FOR HOLDING THE MONOCHROME OUTPUT
     frameBufferObjectFormat.setInternalTextureFormat(GL_R32F);
     frameBufferObjectCodedAperture = new QOpenGLFramebufferObject(numCols, numRows, frameBufferObjectFormat);
     frameBufferObjectCodedAperture->release();
-
-    frameBufferObjectCodedApertureWeights = new QOpenGLFramebufferObject(numCols, numRows, frameBufferObjectFormat);
-    frameBufferObjectCodedApertureWeights->release();
 }
 
 /****************************************************************************/
@@ -507,14 +510,14 @@ void LAUCodedApertureGLFilter::initializeTextures()
 /****************************************************************************/
 void LAUCodedApertureGLFilter::initializeParameters()
 {
+    dataCube = NULL;
+    codedAperture = NULL;
+    spectralMeasurement = NULL;
     frameBufferObjectXYZWRGBAa = NULL;
     frameBufferObjectXYZWRGBAb = NULL;
-    frameBufferObjectCodedApertureWeights = NULL;
-    frameBufferObjectCodedApertureMask = NULL;
     frameBufferObjectCodedAperture = NULL;
-    spectralMeasurement = NULL;
-    codedAperture = NULL;
-    dataCube = NULL;
+    frameBufferObjectCodedApertureLeft = NULL;
+    frameBufferObjectCodedApertureRight = NULL;
 }
 
 /****************************************************************************/
@@ -1155,11 +1158,8 @@ LAUScan LAUCodedApertureGLFilter::forwardCodedAperture(LAUScan scan)
 
                             // BIND THE CODED APERTURE TEXTURE FROM THE FRAME BUFFER OBJECT
                             glActiveTexture(GL_TEXTURE1);
-                            glBindTexture(GL_TEXTURE_2D, frameBufferObjectCodedApertureWeights->texture());
-                            programDx.setUniformValue("qt_weights", 1);
-
-                            // SET SCALE FACTOR FOR INVERTING CODED APERTURE
-                            programDx.setUniformValue("qt_scale", 1.0f);
+                            glBindTexture(GL_TEXTURE_2D, frameBufferObjectCodedApertureRight->texture());
+                            programDx.setUniformValue("qt_codedAperture", 1);
 
                             // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
                             glVertexAttribPointer(programDx.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
@@ -1217,7 +1217,7 @@ LAUScan LAUCodedApertureGLFilter::reverseCodedAperture(LAUScan scan)
 
                             // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT FOR THE CODED APERTURE MASK
                             glActiveTexture(GL_TEXTURE1);
-                            glBindTexture(GL_TEXTURE_2D, frameBufferObjectCodedApertureMask->texture());
+                            glBindTexture(GL_TEXTURE_2D, frameBufferObjectCodedApertureLeft->texture());
                             programDy.setUniformValue("qt_codedAperture", 1);
 
                             // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
@@ -1250,6 +1250,21 @@ LAUScan LAUCodedApertureGLFilter::reverseCodedAperture(LAUScan scan)
 /****************************************************************************/
 LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
 {
+    //    for (unsigned int row = 0; row < ideal.height(); row++) {
+    //        float *buffer = (float *)ideal.constScanLine(row);
+    //        for (unsigned int col = 0; col < ideal.width(); col++) {
+    //            buffer[8 * col + 0] = 0.0f;
+    //            buffer[8 * col + 1] = 0.0f;
+    //            buffer[8 * col + 2] = 0.0f;
+    //            buffer[8 * col + 3] = 0.0f;
+    //            buffer[8 * col + 4] = 0.0f;
+    //            buffer[8 * col + 5] = 0.0f;
+    //            buffer[8 * col + 6] = 0.0f;
+    //            buffer[8 * col + 7] = 0.0f;
+    //        }
+    //    }
+    ideal.save(QString("/Users/dllau/SourceTree/LAUCodedAperture/Matlab/vectorI.tif"));
+
     // THE INCOMING SCAN IS THE COMPLETE, IDEAL, PERFECT 3D DATA CUBE
     // WE WANT TO GENERATE A CODED APERTURE ENCODING AND THEN RECONSTRUCT THIS SCAN
     // CALCULATING THE MEAN SQUARED ERROR STEP BY STEP
@@ -1272,13 +1287,12 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     alphaMin = 1e-30;
     alphaMax = 1e30;
     maxIterA = 10000;
-    minIterA = 2;
+    minIterA = 5;
     maxIterD = 200;
     minIterD = 5;
     continuationSteps = 0;
     lambda = 1;
     alpha = 1;
-
 
     // SO LET'S START BY GENERATING OUR CODED APERTURE ENCODING
     LAUScan vectorY = reverseCodedAperture(ideal);
@@ -1296,8 +1310,13 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     LAUScan vectorXi = forwardTransform(vectorY);
     vectorXi.save("/Users/dllau/SourceTree/LAUCodedAperture/Matlab/vectorXi.tif");
 
+    //FOR DEBUG
+    LAUScan reconsIdeal = forwardCodedAperture(vectorY);
+    reconsIdeal.save("C:/Users/yuzhang/Documents/MATLAB/reconsIdeal.tif");
+
     // CALL METHOD FOR CALCULATING THE INITIAL TAU PARAMETER ACCORDING TO  0.5 * max(abs(AT(y)))
     firstTau = maxAbsValue(vectorXi) / 2.0f;
+    //firstTau = 0.35;
 
     // INITIALIZE U AND V VECTORS (LINES 345 AND 346 OF GPSR_BB SCRIPT)
     LAUScan vectorU = computeVectorU(vectorXi);
@@ -1324,7 +1343,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
 
     iter = 1;
     alpha = 1;
-    //COMPUTE INITIAL VALUE OF THE OBJECTIVE FUNCTION
+    //COMPUTE INITIAL VALUE OF THE OBJECTIVE FUNCTION (LINE 438 OF GPSR_BB SCRIPT)
     f = objectiveFun(vectorResidue, vectorU, vectorV, firstTau);
     float mse = computeMSE(grtruth, vectorXi);
     if (verbose) {
@@ -1340,8 +1359,9 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     //CONTROL VARIABLE FOR THE OUTER LOOP AND ITER COUNTER
     int keep_going = 1;
 
+    //(LINE 461 OF GPSR_BB SCRIPT)
     while (keep_going) {
-        // CALCULATE THE GRADIENT BASED ON THE FORWARD TRANSFORM OF THE RESIDUE_BASE
+        // CALCULATE THE GRADIENT BASED ON THE FORWARD TRANSFORM OF THE RESIDUE_BASE(LINE 464 OF GPSR_BB SCRIPT)
         LAUScan vectorGradient = forwardTransform(vectorResidueBase);
         vectorGradient.save("/Users/dllau/SourceTree/LAUCodedAperture/Matlab/vectorGradient.tif");
 
@@ -1354,7 +1374,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
         LAUScan gradv = subtractScans(scantau, term);
         gradv.save("/Users/dllau/SourceTree/LAUCodedAperture/Matlab/gradv.tif");
 
-        //PROJECTION AND COMPUTTATION OF SEARCH DIRECTION VECTOR
+        //PROJECTION AND COMPUTTATION OF SEARCH DIRECTION VECTOR(LINE 471 OF GPSR_BB SCRIPT)
         LAUScan du = subtractScans(maxScans(subtractScans(vectorU, multiplyScans(alpha, gradu)), createScan(0, gradu)), vectorU);
         du.save("/Users/dllau/SourceTree/LAUCodedAperture/Matlab/du.tif");
         LAUScan dv = subtractScans(maxScans(subtractScans(vectorV, multiplyScans(alpha, gradv)), createScan(0, gradv)), vectorV);
@@ -1381,7 +1401,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
             lambda = 1;
         }
 
-
+        //(LINE 494 OF GPSR_BB SCRIPT)
         vectorU = addScans(old_u, multiplyScans(lambda, du));
         vectorU.save("/Users/dllau/SourceTree/LAUCodedAperture/Matlab/vectorU_new.tif");
         vectorV = addScans(old_v, multiplyScans(lambda, dv));
@@ -1392,17 +1412,17 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
         vectorXi = subtractScans(vectorU, vectorV);
         vectorXi.save("/Users/dllau/SourceTree/LAUCodedAperture/Matlab/vectorXi_new.tif");
 
-        //CALCULATE NONZERO PATTERN AND NUMBER OF NONZEROS
+        //CALCULATE NONZERO PATTERN AND NUMBER OF NONZEROS(LINE 502 OF GPSR_BB SCRIPT)
         int prev_nonZeroCount = nonZeroCount;
         int nonZeroCount = nonZeroElements(vectorXi);
 
-        //UPDATE RESIDUAL AND FUNCTION
+        //UPDATE RESIDUAL AND FUNCTION(LINE 507 OF GPSR_BB SCRIPT)
         LAUScan vectorResidue = subtractScans(subtractScans(vectorY, vectorResidueBase), multiplyScans(lambda, auv));
         vectorResidue.save("/Users/dllau/SourceTree/LAUCodedAperture/Matlab/vectorResidue_new.tif");
         float prev_f = f;
         f = objectiveFun(vectorResidue, vectorU, vectorV, firstTau);
 
-        //COMPUTER NEW ALPHA
+        //COMPUTER NEW ALPHA(LINE 513 OF GPSR_BB SCRIPT)
         float dd = innerProduct(du, du) + innerProduct(dv, dv);
         if (dGd <= 0) {
             qDebug() << "nonpositive curvature detected dGd = " << dGd;
@@ -1417,11 +1437,15 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
             qDebug() << "Iter = " << iter << ", obj = " << f << ", alpha = " << alpha << ", nonezeros = " << nonZeroCount << ", MSE= " << mse;
         }
 
+        // UPDATE ITERATION COUNTS (LINE 530 OF GPSR_BB SCRIPT)
         iter = iter + 1;
         mse = computeMSE(grtruth, vectorXi);
 
+        // FINAL RECONSTRUCTED SNAPSHOT ON CASSI BY SOLVED X
+        LAUScan vectorAofX_final = reverseTransform(vectorXi);
+        vectorAofX_final.save("C:/Users/yuzhang/Documents/MATLAB/vectorAofX_final.tif");
 
-
+        //(LINE 539 OF GPSR_BB SCRIPT)
         switch (stopCriterion) {
             // CRITERION BASED ON THE CHANGE OF THE NUMBER OF NONZERO COMPONENTS OF THE ESTIMATION
             case 0: {
@@ -2278,12 +2302,12 @@ void LAUCodedApertureGLFilter::setCodedAperture(QImage image)
 
         // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH THE SHADER
         // AND VBOS FOR BUILDING THE SKEWED CODED APERATURE MASK FBO
-        if (frameBufferObjectCodedApertureMask && frameBufferObjectCodedApertureMask->bind()) {
+        if (frameBufferObjectCodedApertureLeft && frameBufferObjectCodedApertureLeft->bind()) {
             if (programDw.bind()) {
                 if (vertexBuffer.bind()) {
                     if (indexBuffer.bind()) {
                         // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                        glViewport(0, 0, frameBufferObjectCodedApertureMask->width(), frameBufferObjectCodedApertureMask->height());
+                        glViewport(0, 0, frameBufferObjectCodedApertureLeft->width(), frameBufferObjectCodedApertureLeft->height());
                         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                         // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
@@ -2304,11 +2328,45 @@ void LAUCodedApertureGLFilter::setCodedAperture(QImage image)
                 }
                 programDw.release();
             }
-            frameBufferObjectCodedApertureMask->release();
+            frameBufferObjectCodedApertureLeft->release();
         }
         LAUMemoryObject object(numCols, numRows, 8, sizeof(float));
-        glBindTexture(GL_TEXTURE_2D, frameBufferObjectCodedApertureMask->texture());
+        glBindTexture(GL_TEXTURE_2D, frameBufferObjectCodedApertureLeft->texture());
         glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)object.pointer());
-        object.save("/Users/dllau/SourceTree/LAUCodedAperture/Matlab/codedAperture.tif");
+        object.save("/Users/dllau/SourceTree/LAUCodedAperture/Matlab/codedApertureLeft.tif");
+
+        // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH THE SHADER
+        // AND VBOS FOR BUILDING THE SKEWED CODED APERATURE MASK FBO
+        if (frameBufferObjectCodedApertureRight && frameBufferObjectCodedApertureRight->bind()) {
+            if (programDz.bind()) {
+                if (vertexBuffer.bind()) {
+                    if (indexBuffer.bind()) {
+                        // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
+                        glViewport(0, 0, frameBufferObjectCodedApertureRight->width(), frameBufferObjectCodedApertureRight->height());
+                        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+                        // BIND THE CODED APERTURE TEXTURE FROM THE FRAME BUFFER OBJECT
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_2D, frameBufferObjectCodedApertureLeft->texture());
+                        programDz.setUniformValue("qt_codedAperture", 0);
+
+                        // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
+                        glVertexAttribPointer(programDz.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+                        programDz.enableAttributeArray("qt_vertex");
+
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+                        // RELEASE THE FRAME BUFFER OBJECT AND ITS ASSOCIATED GLSL PROGRAMS
+                        indexBuffer.release();
+                    }
+                    vertexBuffer.release();
+                }
+                programDz.release();
+            }
+            frameBufferObjectCodedApertureRight->release();
+        }
+        glBindTexture(GL_TEXTURE_2D, frameBufferObjectCodedApertureRight->texture());
+        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)object.pointer());
+        object.save("/Users/dllau/SourceTree/LAUCodedAperture/Matlab/codedApertureRight.tif");
     }
 }

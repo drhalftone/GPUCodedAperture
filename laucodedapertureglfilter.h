@@ -182,10 +182,10 @@ private:
     QOpenGLVertexArrayObject vertexArrayObject;
     QOpenGLTexture *dataCube, *spectralMeasurement, *codedAperture;
     QOpenGLShaderProgram programAx, programAy, programBx, programBy;
-    QOpenGLShaderProgram programCx, programCy, programDw, programDx, programDy;
+    QOpenGLShaderProgram programCx, programCy, programDw, programDx, programDy, programDz;
     QOpenGLShaderProgram programU, programV;
     QOpenGLFramebufferObject *frameBufferObjectXYZWRGBAa, *frameBufferObjectXYZWRGBAb;
-    QOpenGLFramebufferObject *frameBufferObjectCodedApertureMask, *frameBufferObjectCodedAperture, *frameBufferObjectCodedApertureWeights;
+    QOpenGLFramebufferObject *frameBufferObjectCodedApertureLeft, *frameBufferObjectCodedApertureRight, *frameBufferObjectCodedAperture;
 
     static float LoD[16], HiD[16], LoR[16], HiR[16];
 

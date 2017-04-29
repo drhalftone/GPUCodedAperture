@@ -136,7 +136,7 @@ LAUMemoryObjectData::~LAUMemoryObjectData()
 {
     if (buffer != NULL) {
         instanceCounter = instanceCounter - 1;
-        //qDebug() << QString("LAUMemoryObjectData::~LAUMemoryObjectData() %1").arg(instanceCounter) << numRows << numCols << numChns << numByts << numBytesTotal;
+        qDebug() << QString("LAUMemoryObjectData::~LAUMemoryObjectData() %1").arg(instanceCounter) << numRows << numCols << numChns << numByts << numBytesTotal;
         _mm_free(buffer);
     }
 }
@@ -154,7 +154,7 @@ void LAUMemoryObjectData::allocateBuffer()
     numBytesTotal *= (unsigned long long)numFrms;
 
     if (numBytesTotal > 0) {
-       // qDebug() << QString("LAUMemoryObjectData::allocateBuffer() %1").arg(instanceCounter++) << numRows << numCols << numChns << numByts << numFrms;
+        qDebug() << QString("LAUMemoryObjectData::allocateBuffer() %1").arg(instanceCounter++) << numRows << numCols << numChns << numByts << numFrms;
 
         stepBytes  = numCols * numChns * numByts;
         frameBytes = numCols * numChns * numByts * numRows;

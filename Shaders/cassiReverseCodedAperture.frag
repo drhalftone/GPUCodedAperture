@@ -16,15 +16,15 @@ void main()
     // ITERATE THROUGH EACH PIXEL IN THE WINDOW
     for (int c = 0; c < 4; c++){
         // GET THE CURRENT INPUT PIXELS FOR CHANNELS 0:3 AND 4:7 AND SKEW THE CURRENT INPUT PIXELS
-        pixelA[c] = texelFetch(qt_texture, ivec2(2*coord.x + 0 + 2*c, coord.y), 0)[c];
-        pixelB[c] = texelFetch(qt_texture, ivec2(2*coord.x + 8 + 2*c, coord.y), 0)[c];
+        pixelA[c] = texelFetch(qt_texture, ivec2(2*(coord.x + 0 + c) + 0, coord.y), 0)[c];
+        pixelB[c] = texelFetch(qt_texture, ivec2(2*(coord.x + 4 + c) + 1, coord.y), 0)[c];
     }
     // GRAB THE CODED APERTURE MASK PIXELS FROM THE MASK TEXTURE
     vec4 maskA = texelFetch(qt_codedAperture, ivec2(2*coord.x + 0, coord.y), 0);
     vec4 maskB = texelFetch(qt_codedAperture, ivec2(2*coord.x + 1, coord.y), 0);
 
     // CALCULATE MASKED SUM OF TWO PIXELS TO GET MONOCHROME RED IMAGE
-    qt_fragColor = vec4(dot(pixelA, maskA) + dot(pixelB, maskB), 0.0, 0.0, 1.0);
+    qt_fragColor = vec4(dot(pixelA, maskA) + dot(pixelB, maskB), 0.0, 0.0, 0.0);
 
     return;
 }
