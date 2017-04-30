@@ -45,6 +45,14 @@
 
 #include "lauscan.h"
 
+#define is_wins
+#ifdef is_wins
+    #define save_dir "C:/Users/yuzhang/Documents/MATLAB/"
+    #define msDataSet_dir "C:/Users/yuzhang/Documents/GPUCodedAperture/Images/msDataSet.tif"
+#elif
+    #define save_dir "/Users/dllau/SourceTree/LAUCodedAperture/Matlab/"
+    #define msDataSet_dir "/Users/dllau/SourceTree/LAUCodedAperture/Matlab/msDataSet.tif"
+#endif
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
@@ -180,12 +188,12 @@ private:
     QSurface *surface;
     QOpenGLBuffer vertexBuffer, indexBuffer;
     QOpenGLVertexArrayObject vertexArrayObject;
-    QOpenGLTexture *dataCube, *spectralMeasurement;
+    QOpenGLTexture *dataCube, *spectralMeasurement, *codedAperture;
     QOpenGLShaderProgram programAx, programAy, programBx, programBy;
-    QOpenGLShaderProgram programCx, programCy, programDx, programDy;
+    QOpenGLShaderProgram programCx, programCy, programDw, programDx, programDy, programDz;
     QOpenGLShaderProgram programU, programV;
     QOpenGLFramebufferObject *frameBufferObjectXYZWRGBAa, *frameBufferObjectXYZWRGBAb;
-    QOpenGLFramebufferObject *frameBufferObjectCodedApertureMask, *frameBufferObjectCodedAperture;
+    QOpenGLFramebufferObject *frameBufferObjectCodedApertureLeft, *frameBufferObjectCodedApertureRight, *frameBufferObjectCodedAperture;
 
     static float LoD[16], HiD[16], LoR[16], HiR[16];
 
