@@ -45,6 +45,14 @@
 
 #include "lauscan.h"
 
+#define is_wins
+#ifdef is_wins
+    #define save_dir "C:/Users/yuzhang/Documents/MATLAB/"
+    #define msDataSet_dir "C:/Users/yuzhang/Documents/GPUCodedAperture/Images/msDataSet.tif"
+#elif
+    #define save_dir "/Users/dllau/SourceTree/LAUCodedAperture/Matlab/"
+    #define msDataSet_dir "/Users/dllau/SourceTree/LAUCodedAperture/Matlab/msDataSet.tif"
+#endif
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/

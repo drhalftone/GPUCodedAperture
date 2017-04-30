@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
     qRegisterMetaType<LAUMemoryObject>("LAUMemoryObject");
     qRegisterMetaType<LAUScan>("LAUScan");
 
-    LAUScan scan = LAUScan(QString("/Users/dllau/SourceTree/LAUCodedAperture/Matlab/msDataSet.tif"));
+    LAUScan scan = LAUScan(QString(msDataSet_dir));
     LAUCodedApertureDialog dialog(scan);
     return (dialog.exec());
 }

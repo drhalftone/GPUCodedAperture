@@ -23,6 +23,10 @@ void main()
     vec4 maskA = texelFetch(qt_codedAperture, ivec2(2*coord.x + 0, coord.y), 0);
     vec4 maskB = texelFetch(qt_codedAperture, ivec2(2*coord.x + 1, coord.y), 0);
 
+    //may need to be modified to the following way?
+    //vec4 maskA = texelFetch(qt_codedAperture, ivec2(2*(coord.x + 0 + c) + 0, coord.y), 0)[c];
+    //vec4 maskB = texelFetch(qt_codedAperture, ivec2(2*(coord.x + 4 + c) + 1, coord.y), 0)[c];
+
     // CALCULATE MASKED SUM OF TWO PIXELS TO GET MONOCHROME RED IMAGE
     qt_fragColor = vec4(dot(pixelA, maskA) + dot(pixelB, maskB), 0.0, 0.0, 0.0);
 
