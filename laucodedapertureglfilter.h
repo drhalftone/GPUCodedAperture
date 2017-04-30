@@ -45,14 +45,14 @@
 
 #include "lauscan.h"
 
-#define is_wins
-#ifdef is_wins
-    #define save_dir "C:/Users/yuzhang/Documents/MATLAB/"
-    #define msDataSet_dir "C:/Users/yuzhang/Documents/GPUCodedAperture/Images/msDataSet.tif"
-#elif
-    #define save_dir "/Users/dllau/SourceTree/LAUCodedAperture/Matlab/"
-    #define msDataSet_dir "/Users/dllau/SourceTree/LAUCodedAperture/Matlab/msDataSet.tif"
+#ifdef Q_OS_WIN
+#define save_dir "C:/Users/yuzhang/Documents/MATLAB/"
+#define msDataSet_dir "C:/Users/yuzhang/Documents/GPUCodedAperture/Images/msDataSet.tif"
+#elif defined(Q_OS_MAC)
+#define save_dir "/Users/dllau/SourceTree/LAUCodedAperture/Matlab/"
+#define msDataSet_dir "/Users/dllau/SourceTree/LAUCodedAperture/Matlab/msDataSet.tif"
 #endif
+
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
@@ -188,10 +188,10 @@ private:
     QSurface *surface;
     QOpenGLBuffer vertexBuffer, indexBuffer;
     QOpenGLVertexArrayObject vertexArrayObject;
-    QOpenGLTexture *dataCube, *spectralMeasurement, *txtScalarA, *txtScalarB;
+    QOpenGLTexture *dataCube, *spectralMeasurement, *txtScalarA, *txtScalarB, *txtCodeAper;
     QOpenGLFramebufferObject *fboScalarA, *fboScalarB;
     QOpenGLFramebufferObject *fboXYZWRGBAa, *fboXYZWRGBAb;
-    QOpenGLFramebufferObject *fboCodeAperLeft, *fboCodeAperRight, *fboCodedAperture;
+    QOpenGLFramebufferObject *fboCodeAperLeft, *fboCodeAperRight, *fboSpectralModel;
 
     QOpenGLShaderProgram prgrmForwardDWTx, prgrmForwardDWTy;
     QOpenGLShaderProgram prgrmForwardDCT, prgrmReverseDCT;
