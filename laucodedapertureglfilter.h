@@ -45,14 +45,14 @@
 
 #include "lauscan.h"
 
-#define is_wins
-#ifdef is_wins
-    #define save_dir "C:/Users/yuzhang/Documents/MATLAB/"
-    #define msDataSet_dir "C:/Users/yuzhang/Documents/GPUCodedAperture/Images/msDataSet.tif"
-#elif
-    #define save_dir "/Users/dllau/SourceTree/LAUCodedAperture/Matlab/"
-    #define msDataSet_dir "/Users/dllau/SourceTree/LAUCodedAperture/Matlab/msDataSet.tif"
+#ifdef Q_OS_WIN
+#define save_dir "C:/Users/yuzhang/Documents/MATLAB/"
+#define msDataSet_dir "C:/Users/yuzhang/Documents/GPUCodedAperture/Images/msDataSet.tif"
+#elif defined(Q_OS_MAC)
+#define save_dir "/Users/dllau/SourceTree/LAUCodedAperture/Matlab/"
+#define msDataSet_dir "/Users/dllau/SourceTree/LAUCodedAperture/Matlab/msDataSet.tif"
 #endif
+
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
@@ -164,7 +164,7 @@ public:
     void initialize();
     void setCodedAperture(QImage image);
 
-    LAUScan reconstructDataCube(LAUScan ideal);      // DERIVE THE 3D DATACUBE FROM THE MONOCHROME IMAGE
+    LAUScan reconstructDataCube(LAUScan ideal);     // DERIVE THE 3D DATACUBE FROM THE MONOCHROME IMAGE
     LAUScan forwardDWCTransform(LAUScan scan);      // DERIVE THE FORWARD DWT+DCT TRANSFORM OF THE 3D DATACUBE
     LAUScan reverseDWCTransform(LAUScan scan);      // DERIVE THE INVERSE DWT+DCT TRANSFORM OF THE 3D DATACUBE
     LAUScan forwardCodedAperture(LAUScan scan);     // GENERATE THE MONOCHROME IMAGE FROM THE 3D DATACUBE USING THE CODED APERTURE
@@ -188,12 +188,16 @@ private:
     QSurface *surface;
     QOpenGLBuffer vertexBuffer, indexBuffer;
     QOpenGLVertexArrayObject vertexArrayObject;
-    QOpenGLTexture *dataCube, *spectralMeasurement, *codedAperture;
-    QOpenGLShaderProgram programAx, programAy, programBx, programBy;
-    QOpenGLShaderProgram programCx, programCy, programDw, programDx, programDy, programDz;
-    QOpenGLShaderProgram programU, programV;
-    QOpenGLFramebufferObject *frameBufferObjectXYZWRGBAa, *frameBufferObjectXYZWRGBAb;
-    QOpenGLFramebufferObject *frameBufferObjectCodedApertureLeft, *frameBufferObjectCodedApertureRight, *frameBufferObjectCodedAperture;
+    QOpenGLTexture *dataCube, *spectralMeasurement, *txtScalarA, *txtScalarB, *txtCodeAper;
+    QOpenGLFramebufferObject *fboScalarA, *fboScalarB;
+    QOpenGLFramebufferObject *fboXYZWRGBAa, *fboXYZWRGBAb;
+    QOpenGLFramebufferObject *fboCodeAperLeft, *fboCodeAperRight, *fboSpectralModel;
+
+    QOpenGLShaderProgram prgrmForwardDWTx, prgrmForwardDWTy;
+    QOpenGLShaderProgram prgrmForwardDCT, prgrmReverseDCT;
+    QOpenGLShaderProgram prgrmReverseDWTx, prgrmReverseDWTy;
+    QOpenGLShaderProgram prgrmForwardCodedAperture, prgrmReverseCodedAperture;
+    QOpenGLShaderProgram prgrmU, prgrmV;
 
     static float LoD[16], HiD[16], LoR[16], HiR[16];
 
@@ -276,7 +280,7 @@ public slots:
 private:
     LAUScan scan;
     QOpenGLTexture *dataCube;
-    QOpenGLShaderProgram program;
+    QOpenGLShaderProgram prgrm;
     QOpenGLBuffer vertexBuffer, indexBuffer;
     QOpenGLVertexArrayObject vertexArrayObject;
 };
