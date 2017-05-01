@@ -1275,7 +1275,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     verbose = true;
     monotone = true;
     continuation = false;
-    tolA = 0.5;
+    tolA = 1.e-2;
     tolD = 0.0001;
     alphaMin = 1e-30;
     alphaMax = 1e30;
@@ -1297,7 +1297,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     LAUScan vectorZ = reverseCodedAperture(vectorW);
     vectorZ.save(QString((save_dir) + QString("vectorZ.tif")));
 
-    return (vectorY);
+    //return (vectorY);
 
     // NOW CALCULATE THE INITIAL ESTIMATE (LINE 290 OF GPSR_BB SCRIPT)
     LAUScan vectorXi = forwardTransform(vectorY);
@@ -1308,8 +1308,8 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     reconsIdeal.save(QString((save_dir) + QString("reconsIdeal.tif")));
 
     // CALL METHOD FOR CALCULATING THE INITIAL TAU PARAMETER ACCORDING TO  0.5 * max(abs(AT(y)))
-    firstTau = maxAbsValue(vectorXi) / 2.0f;
-    //firstTau = 0.35;
+    //firstTau = maxAbsValue(vectorXi) / 2.0f;
+    firstTau = 0.35;
 
     // INITIALIZE U AND V VECTORS (LINES 345 AND 346 OF GPSR_BB SCRIPT)
     LAUScan vectorU = computeVectorU(vectorXi);
@@ -1323,14 +1323,14 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
 
     // GET THE GROUND TRUTH X
     LAUScan grtruth = forwardDWCTransform(ideal);
-    grtruth.save(QString((save_dir) + QString("grtruth.tif")));
+    grtruth.save(QString((save_dir) + QString("grtruth_new.tif")));
 
     // CALCULATE RESIDUE (LINE 402 OF GPSR_BB SCRIPT)
     LAUScan vectorAofX = reverseTransform(vectorXi);
     vectorAofX.save(QString((save_dir) + QString("vectorAofX.tif")));
 
     LAUScan vectorResidue = subtractScans(vectorY, vectorAofX);
-    vectorResidue.save(QString((save_dir) + QString("vectorResidue.tif")));
+    vectorResidue.save(QString((save_dir) + QString("vectorResidue_first.tif")));
 
 
 
@@ -1742,7 +1742,7 @@ int LAUCodedApertureGLFilter::nonZeroElements(LAUScan scan)
     }
     pixVec = _mm_hadd_epi32(pixVec, pixVec);
     pixVec = _mm_hadd_epi32(pixVec, pixVec);
-    return (_mm_extract_epi32(pixVec, 0));
+    return  (qAbs(_mm_extract_epi32(pixVec, 0)));
 }
 
 /****************************************************************************/
