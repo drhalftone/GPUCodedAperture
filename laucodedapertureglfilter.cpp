@@ -1305,7 +1305,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     LAUScan vectorZ = reverseCodedAperture(vectorW);
     vectorZ.save(QString((save_dir) + QString("vectorZ.tif")));
 
-    //return (vectorY);
+    return (vectorY);
 
     // NOW CALCULATE THE INITIAL ESTIMATE (LINE 290 OF GPSR_BB SCRIPT)
     LAUScan vectorXi = forwardTransform(vectorY);
@@ -1317,7 +1317,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
 
     // CALL METHOD FOR CALCULATING THE INITIAL TAU PARAMETER ACCORDING TO  0.5 * max(abs(AT(y)))
     firstTau = maxAbsValue(vectorXi) / 2.0f;
-    firstTau = 1.35;
+    //firstTau = 0.35;
 
     // INITIALIZE U AND V VECTORS (LINES 345 AND 346 OF GPSR_BB SCRIPT)
     LAUScan vectorU = computeVectorU(vectorXi);
