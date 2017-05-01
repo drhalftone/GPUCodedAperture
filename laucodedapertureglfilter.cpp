@@ -278,6 +278,18 @@ LAUCodedApertureGLFilter::LAUCodedApertureGLFilter(LAUScan scan, QWidget *parent
 LAUCodedApertureGLFilter::~LAUCodedApertureGLFilter()
 {
     if (surface && makeCurrent(surface)) {
+        if (txtScalarA) {
+            delete txtScalarA;
+        }
+        if (txtScalarB) {
+            delete txtScalarB;
+        }
+        if (fboScalarA) {
+            delete fboScalarA;
+        }
+        if (fboScalarB) {
+            delete fboScalarB;
+        }
         if (fboXYZWRGBAa) {
             delete fboXYZWRGBAa;
         }
@@ -448,6 +460,15 @@ void LAUCodedApertureGLFilter::initializeShaders()
     prgrmV.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
     prgrmV.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiMapToVectorV.frag");
     prgrmV.link();
+
+    prgrmScalarMSE.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
+    prgrmScalarMSE.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiScalarMSE.frag");
+    prgrmScalarMSE.link();
+
+    prgrmScalarADD.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
+    prgrmScalarADD.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiScalarADD.frag");
+    prgrmScalarADD.link();
+
     setlocale(LC_ALL, "");
 }
 
@@ -474,6 +495,17 @@ void LAUCodedApertureGLFilter::initializeTextures()
     spectralMeasurement->setMagnificationFilter(QOpenGLTexture::Nearest);
     spectralMeasurement->allocateStorage();
 
+    // CREATE GPU SIDE TEXTURES FOR SCALAR FILTERING OPERATIONS
+    txtScalarA = new QOpenGLTexture(QOpenGLTexture::Target2D);
+    txtScalarA->setSize(2 * numCols, numRows);
+    txtScalarA->setFormat(QOpenGLTexture::RGBA32F);
+    txtScalarA->allocateStorage();
+
+    txtScalarB = new QOpenGLTexture(QOpenGLTexture::Target2D);
+    txtScalarB->setSize(2 * numCols, numRows);
+    txtScalarB->setFormat(QOpenGLTexture::RGBA32F);
+    txtScalarB->allocateStorage();
+
     // CREATE A FRAME BUFFER OBJECT FORMAT INSTANCE FOR THE FBOS
     QOpenGLFramebufferObjectFormat fboFormat;
     fboFormat.setInternalTextureFormat(GL_RGBA32F);
@@ -495,6 +527,12 @@ void LAUCodedApertureGLFilter::initializeTextures()
     fboFormat.setInternalTextureFormat(GL_R32F);
     fboSpectralModel = new QOpenGLFramebufferObject(numCols, numRows, fboFormat);
     fboSpectralModel->release();
+
+    fboScalarA = new QOpenGLFramebufferObject(numCols, numRows, fboFormat);
+    fboScalarA->release();
+
+    fboScalarB = new QOpenGLFramebufferObject(numCols, numRows, fboFormat);
+    fboScalarB->release();
 }
 
 /****************************************************************************/
@@ -503,6 +541,10 @@ void LAUCodedApertureGLFilter::initializeTextures()
 void LAUCodedApertureGLFilter::initializeParameters()
 {
     dataCube = NULL;
+    txtScalarA = NULL;
+    txtScalarB = NULL;
+    fboScalarA = NULL;
+    fboScalarB = NULL;
     txtCodeAper = NULL;
     fboXYZWRGBAa = NULL;
     fboXYZWRGBAb = NULL;
@@ -1151,7 +1193,7 @@ LAUScan LAUCodedApertureGLFilter::forwardCodedAperture(LAUScan scan)
                             // BIND THE CODED APERTURE TEXTURE FROM THE FRAME BUFFER OBJECT
                             glActiveTexture(GL_TEXTURE1);
                             glBindTexture(GL_TEXTURE_2D, fboCodeAperRight->texture());
-                            prgrmForwardCodedAperture.setUniformValue("qt_fboCodeAper", 1);
+                            prgrmForwardCodedAperture.setUniformValue("qt_codedAperture", 1);
 
                             // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
                             glVertexAttribPointer(prgrmForwardCodedAperture.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
@@ -1210,7 +1252,7 @@ LAUScan LAUCodedApertureGLFilter::reverseCodedAperture(LAUScan scan)
                             // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT FOR THE CODED APERTURE MASK
                             glActiveTexture(GL_TEXTURE1);
                             glBindTexture(GL_TEXTURE_2D, fboCodeAperLeft->texture());
-                            prgrmReverseCodedAperture.setUniformValue("qt_fboCodeAper", 1);
+                            prgrmReverseCodedAperture.setUniformValue("qt_codedAperture", 1);
 
                             // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
                             glVertexAttribPointer(prgrmReverseCodedAperture.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
@@ -1290,6 +1332,8 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     // SO LET'S START BY GENERATING OUR CODED APERTURE ENCODING
     LAUScan vectorY = reverseCodedAperture(ideal);
     vectorY.save(QString((save_dir) + QString("vectorY.tif")));
+
+    return (vectorY);
 
     LAUScan vectorW = forwardCodedAperture(vectorY);
     vectorW.save(QString((save_dir) + QString("vectorW.tif")));
@@ -2244,6 +2288,7 @@ float LAUCodedApertureGLFilter::computeMSE(LAUScan scanA, LAUScan scanB)
         return (NAN);
     }
 
+#if defined(Q_OS_WIN)
     // CREATE SSE VECTOR TO HOLD THE ACCUMULATED SUM OF ERRORS
     __m128 mseVec = _mm_set1_ps(0.0f);
 
@@ -2274,6 +2319,122 @@ float LAUCodedApertureGLFilter::computeMSE(LAUScan scanA, LAUScan scanB)
 
     // FIND THE LARGEST SCALAR VALUE
     return (a + b + c + d);
+#elif defined(Q_OS_MAC)
+    // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
+    if (makeCurrent(surface)) {
+        // COPY FRAME BUFFER TEXTURE FROM GPU TO LOCAL CPU BUFFER
+        txtScalarA->setData(QOpenGLTexture::RGBA, QOpenGLTexture::Float32, (const void *)scanA.constPointer());
+        txtScalarB->setData(QOpenGLTexture::RGBA, QOpenGLTexture::Float32, (const void *)scanB.constPointer());
+
+        // THIS LOOP CALCULATES THE SUM OF SQUARED ERRORS FOR EACH PIXEL OF THE INPUT TEXTURES
+        if (fboScalarA->bind()) {
+            if (prgrmScalarMSE.bind()) {
+                if (vertexBuffer.bind()) {
+                    if (indexBuffer.bind()) {
+                        // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
+                        glViewport(0, 0, fboScalarA->width(), fboScalarA->height());
+                        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+                        // BIND THE TEXTURES FOR THE FILTERING OPERATION
+                        glActiveTexture(GL_TEXTURE0);
+                        txtScalarA->bind();
+                        prgrmScalarMSE.setUniformValue("qt_textureA", 0);
+
+                        glActiveTexture(GL_TEXTURE1);
+                        txtScalarB->bind();
+                        prgrmScalarMSE.setUniformValue("qt_textureB", 1);
+
+                        // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
+                        glVertexAttribPointer(prgrmScalarMSE.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+                        prgrmScalarMSE.enableAttributeArray("qt_vertex");
+
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+                        // RELEASE THE FRAME BUFFER OBJECT AND ITS ASSOCIATED GLSL PROGRAMS
+                        indexBuffer.release();
+                    }
+                    vertexBuffer.release();
+                }
+                prgrmScalarMSE.release();
+            }
+            fboScalarA->release();
+        }
+
+        // DOWNLOAD THE GPU RESULT BACK TO THE CPU
+        glBindTexture(GL_TEXTURE_2D, fboScalarA->texture());
+        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scanA.pointer());
+        doneCurrent();
+
+        // THIS LOOP ACCUMULATES PIXELS WITHIN 8X8 BLOCKS AND RETURNS THEIR SUM
+        // IN PARTICULAR, THIS LOOP REDUCES THE 640X480 DOWN TO 80X60
+        if (fboScalarB->bind()) {
+            if (prgrmScalarADD.bind()) {
+                if (vertexBuffer.bind()) {
+                    if (indexBuffer.bind()) {
+                        // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
+                        glViewport(0, 0, fboScalarB->width() / 8, fboScalarB->height() / 8);
+                        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+                        // BIND THE TEXTURES FOR THE FILTERING OPERATION
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_2D, fboScalarA->texture());
+                        prgrmScalarADD.setUniformValue("qt_texture", 0);
+
+                        // TELL THE SHADER HOW LARGE A BLOCK TO PROCESS
+                        prgrmScalarADD.setUniformValue("qt_blockSize", QVector2D(8, 8));
+
+                        // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
+                        glVertexAttribPointer(prgrmScalarADD.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+                        prgrmScalarADD.enableAttributeArray("qt_vertex");
+
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+                        // RELEASE THE FRAME BUFFER OBJECT AND ITS ASSOCIATED GLSL PROGRAMS
+                        indexBuffer.release();
+                    }
+                    vertexBuffer.release();
+                }
+                prgrmScalarADD.release();
+            }
+            fboScalarB->release();
+        }
+
+        // THIS LOOP ACCUMULATES PIXELS WITHIN 8X8 BLOCKS AND RETURNS THEIR SUM
+        // IN PARTICULAR, THIS LOOP REDUCES THE 80X60 DOWN TO 10X15
+        if (fboScalarA->bind()) {
+            if (prgrmScalarADD.bind()) {
+                if (vertexBuffer.bind()) {
+                    if (indexBuffer.bind()) {
+                        // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
+                        glViewport(0, 0, fboScalarA->width() / 32, fboScalarA->height() / 32);
+                        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+                        // BIND THE TEXTURES FOR THE FILTERING OPERATION
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_2D, fboScalarB->texture());
+                        prgrmScalarADD.setUniformValue("qt_texture", 0);
+
+                        // TELL THE SHADER HOW LARGE A BLOCK TO PROCESS
+                        prgrmScalarADD.setUniformValue("qt_blockSize", QVector2D(8, 4));
+
+                        // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
+                        glVertexAttribPointer(prgrmScalarADD.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+                        prgrmScalarADD.enableAttributeArray("qt_vertex");
+
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+                        // RELEASE THE FRAME BUFFER OBJECT AND ITS ASSOCIATED GLSL PROGRAMS
+                        indexBuffer.release();
+                    }
+                    vertexBuffer.release();
+                }
+                prgrmScalarADD.release();
+            }
+            fboScalarA->release();
+        }
+    }
+    return (0.0f);
+#endif
 }
 
 /****************************************************************************/
@@ -2349,7 +2510,7 @@ void LAUCodedApertureGLFilter::setCodedAperture(QImage image)
                         // BIND THE CODED APERTURE TEXTURE FROM THE FRAME BUFFER OBJECT
                         glActiveTexture(GL_TEXTURE0);
                         glBindTexture(GL_TEXTURE_2D, fboCodeAperLeft->texture());
-                        prgrmB.setUniformValue("qt_fboCodeAper", 0);
+                        prgrmB.setUniformValue("qt_codedAperture", 0);
 
                         // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
                         glVertexAttribPointer(prgrmB.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
