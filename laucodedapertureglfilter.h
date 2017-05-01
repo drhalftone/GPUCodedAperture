@@ -188,7 +188,10 @@ private:
     QSurface *surface;
     QOpenGLBuffer vertexBuffer, indexBuffer;
     QOpenGLVertexArrayObject vertexArrayObject;
-    QOpenGLTexture *dataCube, *spectralMeasurement, *txtScalarA, *txtScalarB, *txtCodeAper;
+
+    QOpenGLTexture *dataCube, *spectralMeasurement;
+    QOpenGLTexture *txtScalarA, *txtScalarB, *txtCodeAper;
+
     QOpenGLFramebufferObject *fboScalarA, *fboScalarB;
     QOpenGLFramebufferObject *fboXYZWRGBAa, *fboXYZWRGBAb;
     QOpenGLFramebufferObject *fboCodeAperLeft, *fboCodeAperRight, *fboSpectralModel;
@@ -197,7 +200,7 @@ private:
     QOpenGLShaderProgram prgrmForwardDCT, prgrmReverseDCT;
     QOpenGLShaderProgram prgrmReverseDWTx, prgrmReverseDWTy;
     QOpenGLShaderProgram prgrmForwardCodedAperture, prgrmReverseCodedAperture;
-    QOpenGLShaderProgram prgrmU, prgrmV;
+    QOpenGLShaderProgram prgrmU, prgrmV, prgrmScalarMSE, prgrmScalarADD;
 
     static float LoD[16], HiD[16], LoR[16], HiR[16];
 
