@@ -617,6 +617,11 @@ LAUScan LAUCodedApertureGLFilter::forwardDWCTransform(LAUScan scan)
             fboXYZWRGBAa->release();
         }
 
+//                        glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAa->texture());
+//                        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
+//                        doneCurrent();
+//                        return(scan);
+
         if (fboXYZWRGBAb->bind()) {
             if (prgrmForwardDWTy.bind()) {
                 if (vertexBuffer.bind()) {
@@ -663,6 +668,11 @@ LAUScan LAUCodedApertureGLFilter::forwardDWCTransform(LAUScan scan)
             }
             fboXYZWRGBAb->release();
         }
+
+//                glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAb->texture());
+//                glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
+//                doneCurrent();
+//                return(scan);
 
         if (fboXYZWRGBAa->bind()) {
             if (prgrmForwardDWTx.bind()) {
@@ -851,6 +861,10 @@ LAUScan LAUCodedApertureGLFilter::forwardDWCTransform(LAUScan scan)
             }
             fboXYZWRGBAb->release();
         }
+        // DOWNLOAD THE GPU RESULT BACK TO THE CPU FOR DEBUG
+//        glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAb->texture());
+//        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
+//        return (scan);
 
         // BIND THE FRAME BUFFER OBJECT, SHADER, AND VBOS FOR CALCULATING THE DCT ACROSS CHANNELS
         if (fboXYZWRGBAa->bind()) {
@@ -934,6 +948,10 @@ LAUScan LAUCodedApertureGLFilter::reverseDWCTransform(LAUScan scan)
             }
             fboXYZWRGBAb->release();
         }
+
+//        glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAb->texture());
+//        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
+//        return (scan);
 
         if (fboXYZWRGBAa->bind()) {
             if (prgrmReverseDWTx.bind()) {
@@ -1284,19 +1302,29 @@ LAUScan LAUCodedApertureGLFilter::reverseCodedAperture(LAUScan scan)
 /****************************************************************************/
 LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
 {
-    //    for (unsigned int row = 0; row < ideal.height(); row++) {
-    //        float *buffer = (float *)ideal.constScanLine(row);
-    //        for (unsigned int col = 0; col < ideal.width(); col++) {
-    //            buffer[8 * col + 0] = 0.0f;
-    //            buffer[8 * col + 1] = 0.0f;
-    //            buffer[8 * col + 2] = 0.0f;
-    //            buffer[8 * col + 3] = 0.0f;
-    //            buffer[8 * col + 4] = 0.0f;
-    //            buffer[8 * col + 5] = 0.0f;
-    //            buffer[8 * col + 6] = 0.0f;
-    //            buffer[8 * col + 7] = 0.0f;
-    //        }
-    //    }
+//        for (unsigned int row = 0; row < ideal.height(); row++) {
+//            float *buffer = (float *)ideal.constScanLine(row);
+//            for (unsigned int col = 0; col < ideal.width(); col++) {
+//                buffer[8 * col + 0] = 0.0f;
+//                buffer[8 * col + 1] = 0.0f;
+//                buffer[8 * col + 2] = 0.0f;
+//                buffer[8 * col + 3] = 0.0f;
+//                buffer[8 * col + 4] = 0.0f;
+//                buffer[8 * col + 5] = 0.0f;
+//                buffer[8 * col + 6] = 0.0f;
+//                buffer[8 * col + 7] = 0.0f;
+//                if (row == ideal.height()/2 && col == ideal.width()/2){
+//                    buffer[8 * col + 0] = 1.0f;
+//                    buffer[8 * col + 1] = 1.0f;
+//                    buffer[8 * col + 2] = 1.0f;
+//                    buffer[8 * col + 3] = 1.0f;
+//                    buffer[8 * col + 4] = 1.0f;
+//                    buffer[8 * col + 5] = 1.0f;
+//                    buffer[8 * col + 6] = 1.0f;
+//                    buffer[8 * col + 7] = 1.0f;
+//                }
+//            }
+//        }
     ideal.save(QString((save_dir) + QString("vectorI.tif")));
 
 
@@ -1317,12 +1345,12 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     verbose = true;
     monotone = true;
     continuation = false;
-    tolA = 1.e-2;
+    tolA = 0.01;
     tolD = 0.0001;
     alphaMin = 1e-30;
     alphaMax = 1e30;
     maxIterA = 10000;
-    minIterA = 5;
+    minIterA = 3;
     maxIterD = 200;
     minIterD = 5;
     continuationSteps = 0;
@@ -1333,19 +1361,30 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     LAUScan vectorY = reverseCodedAperture(ideal);
     vectorY.save(QString((save_dir) + QString("vectorY.tif")));
 
-    return (vectorY);
-
     LAUScan vectorW = forwardCodedAperture(vectorY);
     vectorW.save(QString((save_dir) + QString("vectorW.tif")));
 
     LAUScan vectorZ = reverseCodedAperture(vectorW);
     vectorZ.save(QString((save_dir) + QString("vectorZ.tif")));
 
-    //return (vectorY);
+    LAUScan vectorX_ideal_afterDWCT = forwardDWCTransform(ideal);
+    vectorX_ideal_afterDWCT.save(QString((save_dir) + QString("vectorX_ideal_afterDWCT_nodct.tif")));
+
+    LAUScan vectorX_ideal_afterDWCT_IDWCT = reverseDWCTransform(vectorX_ideal_afterDWCT);
+    vectorX_ideal_afterDWCT_IDWCT.save(QString((save_dir) + QString("vectorX_ideal_afterDWCT_IDWCT.tif")));
+
+//    LAUScan ideal_y = reverseTransform(vectorX_ideal_afterDWCT);
+//    ideal_y.save(QString((save_dir) + QString("ideal_y.tif")));
+
+   // return (vectorY);
 
     // NOW CALCULATE THE INITIAL ESTIMATE (LINE 290 OF GPSR_BB SCRIPT)
     LAUScan vectorXi = forwardTransform(vectorY);
     vectorXi.save(QString((save_dir) + QString("vectorXi.tif")));
+
+
+//    LAUScan scalar = createScan(0.3, vectorXi);
+//    vectorXi = addScans(vectorXi, scalar);
 
     //FOR DEBUG
     LAUScan reconsIdeal = forwardCodedAperture(vectorY);
@@ -1376,7 +1415,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     LAUScan vectorResidue = subtractScans(vectorY, vectorAofX);
     vectorResidue.save(QString((save_dir) + QString("vectorResidue_first.tif")));
 
-
+   // return (vectorAofX);
 
     iter = 1;
     alpha = 1;
@@ -1471,7 +1510,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
         vectorResidueBase = addScans(vectorResidueBase, multiplyScans(lambda, auv));
 
         if (verbose) {
-            qDebug() << "Iter = " << iter << ", obj = " << f << ", alpha = " << alpha << ", nonezeros = " << nonZeroCount << ", MSE= " << mse;
+            qDebug() << "Iter = " << iter << ", obj = " << f <<", lambda = " << lambda << ", alpha = " << alpha << ", nonezeros = " << nonZeroCount << ", MSE= " << mse;
         }
 
         // UPDATE ITERATION COUNTS (LINE 530 OF GPSR_BB SCRIPT)
@@ -1481,6 +1520,13 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
         // FINAL RECONSTRUCTED SNAPSHOT ON CASSI BY SOLVED X
         LAUScan vectorAofX_final = reverseTransform(vectorXi);
         vectorAofX_final.save(QString((save_dir) + QString("vectorAofX_final.tif")));
+
+        LAUScan datacube_final = reverseDWCTransform(vectorXi);
+        datacube_final.save(QString((save_dir) + QString("datacube_final.tif")));
+
+//        if (iter ==3){
+//        return(LAUScan());
+//        }
 
         //(LINE 539 OF GPSR_BB SCRIPT)
         switch (stopCriterion) {
@@ -1799,14 +1845,7 @@ float LAUCodedApertureGLFilter::objectiveFun(LAUScan vectorResidue, LAUScan vect
         return (NAN);
     }
 
-    float dataterm = 0;
-    float *buffer = (float *)vectorResidue.constPointer();
-    for (unsigned int row = 0; row < numRows; row++) {
-        for (unsigned int col = 0; col < numCols; col++) {
-            // GRAB THE VALUE
-            dataterm += buffer[col] * buffer[col];
-        }
-    }
+    float dataterm = innerProduct(vectorResidue, vectorResidue);
 
     // CREATE REGULARIZATION VECTOR TO HOLD THE ACCUMULATED SUM OF REGULARIZATION TERM
     __m128 reguVecU = _mm_set1_ps(0.0f);
@@ -1841,12 +1880,14 @@ float LAUCodedApertureGLFilter::objectiveFun(LAUScan vectorResidue, LAUScan vect
     *(int *)&du = _mm_extract_ps(reguVecU, 3);
 
     float av, bv, cv, dv;
-    *(int *)&av = _mm_extract_ps(reguVecU, 0);
-    *(int *)&bv = _mm_extract_ps(reguVecU, 1);
-    *(int *)&cv = _mm_extract_ps(reguVecU, 2);
-    *(int *)&dv = _mm_extract_ps(reguVecU, 3);
+    *(int *)&av = _mm_extract_ps(reguVecV, 0);
+    *(int *)&bv = _mm_extract_ps(reguVecV, 1);
+    *(int *)&cv = _mm_extract_ps(reguVecV, 2);
+    *(int *)&dv = _mm_extract_ps(reguVecV, 3);
 
-    float f = 0.5 * dataterm + tau * (au + bu + cu + du + av + bv + cv + dv);
+    float u = au + bu + cu + du ;
+    float v = av + bv + cv + dv ;
+    float f = 0.5 * dataterm + tau * (u + v);
 
     // FIND THE LARGEST SCALAR VALUE
     return (f);
