@@ -33,6 +33,7 @@
 #ifndef LAUCODEDAPERTUREGLFILTER_H
 #define LAUCODEDAPERTUREGLFILTER_H
 
+#include <QScreen>
 #include <QOpenGLWidget>
 #include <QOpenGLBuffer>
 #include <QOpenGLTexture>
@@ -225,8 +226,6 @@ private:
     float lambda;
     float f;                        // object function;
 
-
-
     void initializeParameters();
     void initializeShaders();
     void initializeTextures();
@@ -273,6 +272,7 @@ public:
     }
 
 protected:
+    void wheelEvent(QWheelEvent *event);
     void initializeGL();
     void resizeGL(int w, int h);
     void paintGL();
@@ -281,6 +281,8 @@ public slots:
     void onUpdateScan(LAUScan scn);
 
 private:
+    unsigned int localHeight, localWidth, channel;
+
     LAUScan scan;
     QOpenGLTexture *dataCube;
     QOpenGLShaderProgram prgrm;
@@ -296,18 +298,16 @@ class LAUCodedApertureWidget : public QWidget
     Q_OBJECT
 
 public:
-    explicit LAUCodedApertureWidget(LAUScan scan, QWidget *parent = 0);
+    explicit LAUCodedApertureWidget(LAUScan scn, QWidget *parent = 0);
     ~LAUCodedApertureWidget();
 
-    LAUScan smoothedScan()
-    {
-        return (result);
-    }
+    LAUScan smoothedScan();
 
 public slots:
+    void onSetCodedAperture();
 
 private:
-    LAUScan result;
+    LAUScan scan;
     LAUCodedApertureGLWidget *glWidget;
     LAUCodedApertureGLFilter *codedApertureFilter;
 
@@ -331,6 +331,10 @@ public:
         connect(buttonBox->button(QDialogButtonBox::Ok), SIGNAL(clicked()), this, SLOT(accept()));
         connect(buttonBox->button(QDialogButtonBox::Cancel), SIGNAL(clicked()), this, SLOT(reject()));
 
+        QPushButton *button = new QPushButton(QString("Set Aperture"));
+        connect(button, SIGNAL(clicked()), widget, SLOT(onSetCodedAperture()));
+        buttonBox->addButton(button, QDialogButtonBox::ActionRole);
+
         this->setLayout(new QVBoxLayout());
         this->layout()->setContentsMargins(6, 6, 6, 6);
         this->layout()->addWidget(widget);
@@ -342,8 +346,10 @@ protected:
     {
         // GIVE THE USER THE CHANCE TO SAVE THE RESULTING SCAN TO DISK
         LAUScan result = widget->smoothedScan();
-        if (result.save(QString())) {
-            QDialog::accept();
+        if (result.isValid()){
+            if (result.save(QString())) {
+                QDialog::accept();
+            }
         }
     }
 

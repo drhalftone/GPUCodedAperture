@@ -41,7 +41,83 @@ float LAUCodedApertureGLFilter::HiR[16] = {  -0.00338242,   0.00054213,   0.0316
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
-LAUCodedApertureGLWidget::LAUCodedApertureGLWidget(unsigned int cols, unsigned int rows, QWidget *parent) : QOpenGLWidget(parent), scan(LAUScan(cols, rows, ColorXYZWRGBA)), dataCube(NULL)
+LAUCodedApertureWidget::LAUCodedApertureWidget(LAUScan scn, QWidget *parent) : QWidget(parent), scan(scn), glWidget(NULL), codedApertureFilter(NULL)
+{
+    // INITIALIZE THE CURVATURE FILTER AND
+    // CREATE A GLWIDGET TO DISPLAY THE SCAN
+    if (scn.isValid()) {
+        codedApertureFilter = new LAUCodedApertureGLFilter(scn.convertToColor(ColorXYZWRGBA));
+    }
+    glWidget = new LAUCodedApertureGLWidget(scn);
+    glWidget->setMinimumSize(scn.width(), scn.height());
+
+    this->setLayout(new QVBoxLayout());
+    this->setContentsMargins(0, 0, 0, 0);
+    this->layout()->addWidget(glWidget);
+}
+
+/****************************************************************************/
+/****************************************************************************/
+/****************************************************************************/
+LAUCodedApertureWidget::~LAUCodedApertureWidget()
+{
+    qDebug() << "LAUCodedApertureWidget()::~LAUCodedApertureWidget()";
+}
+
+/****************************************************************************/
+/****************************************************************************/
+/****************************************************************************/
+void LAUCodedApertureWidget::onSetCodedAperture()
+{
+    QSettings settings;
+    QString directory = settings.value("LAUCodedApertureWidget::lastUsedDirectory", QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).toString();
+    QString filename = QFileDialog::getOpenFileName(0, QString("Load image from disk (*.bmp)"), directory, QString("*.bmp"));
+    if (filename.isEmpty() == false) {
+        LAUScan::lastUsedDirectory = QFileInfo(filename).absolutePath();
+        settings.setValue("LAUCodedApertureWidget::lastUsedDirectory", LAUScan::lastUsedDirectory);
+        if (codedApertureFilter){
+            codedApertureFilter->setCodedAperture(QImage(filename));
+        }
+    } else {
+        return;
+    }
+}
+
+/****************************************************************************/
+/****************************************************************************/
+/****************************************************************************/
+LAUScan LAUCodedApertureWidget::smoothedScan()
+{
+    if (codedApertureFilter == NULL){
+        return(LAUScan());
+    }
+
+    LAUScan result = codedApertureFilter->reconstructDataCube(scan);
+    if (result.isValid()){
+        LAUCodedApertureGLWidget *widget = new LAUCodedApertureGLWidget(result);
+        widget->setMinimumSize(result.width(), result.height());
+
+        QDialog dialog;
+        dialog.setLayout(new QVBoxLayout());
+        dialog.setContentsMargins(0, 0, 0, 0);
+        dialog.layout()->addWidget(widget);
+
+        QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+        connect(buttonBox->button(QDialogButtonBox::Ok), SIGNAL(clicked()), &dialog, SLOT(accept()));
+        connect(buttonBox->button(QDialogButtonBox::Cancel), SIGNAL(clicked()), &dialog, SLOT(reject()));
+
+        dialog.layout()->addWidget(buttonBox);
+        if (dialog.exec() == QDialog::Accepted){
+            return(result);
+        }
+    }
+    return(LAUScan());
+}
+
+/****************************************************************************/
+/****************************************************************************/
+/****************************************************************************/
+LAUCodedApertureGLWidget::LAUCodedApertureGLWidget(unsigned int cols, unsigned int rows, QWidget *parent) : QOpenGLWidget(parent), channel(0), scan(LAUScan(cols, rows, ColorXYZWRGBA)), dataCube(NULL)
 {
     ;
 }
@@ -49,7 +125,7 @@ LAUCodedApertureGLWidget::LAUCodedApertureGLWidget(unsigned int cols, unsigned i
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
-LAUCodedApertureGLWidget::LAUCodedApertureGLWidget(LAUScan scn, QWidget *parent) : QOpenGLWidget(parent), scan(scn), dataCube(NULL)
+LAUCodedApertureGLWidget::LAUCodedApertureGLWidget(LAUScan scn, QWidget *parent) : QOpenGLWidget(parent), channel(0), scan(scn), dataCube(NULL)
 {
     ;
 }
@@ -60,6 +136,53 @@ LAUCodedApertureGLWidget::LAUCodedApertureGLWidget(LAUScan scn, QWidget *parent)
 LAUCodedApertureGLWidget::~LAUCodedApertureGLWidget()
 {
     ;
+}
+
+/****************************************************************************/
+/****************************************************************************/
+/****************************************************************************/
+void LAUCodedApertureGLWidget::wheelEvent(QWheelEvent *event)
+{
+    // CHANGE THE ZOOM FACTOR BASED ON HOW MUCH WHEEL HAS MOVED
+    channel += qRound((float)event->angleDelta().y()/160.0);
+
+    // UPDATE THE PROJECTION MATRIX SINCE WE CHANGED THE ZOOM FACTOR
+    update();
+}
+
+/****************************************************************************/
+/****************************************************************************/
+/****************************************************************************/
+void LAUCodedApertureGLWidget::onUpdateScan(LAUScan scn)
+{
+    // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
+    if (scn.isValid() && scn.colors() == 8)  {
+        // MAKE A LOCAL COPY OF THE INCOMING SCAN
+        scan = scn;
+
+        // MAKE THIS THE CURRENT OPENGL CONTEXT
+        makeCurrent();
+
+        // DELETE THE OLD DATE CUBE TEXTURE IF IT EXISTS
+        if (dataCube) {
+            delete dataCube;
+        }
+
+        // CREATE THE GPU SIDE TEXTURE TO HOLD THE 3D DATA CUBE
+        dataCube = new QOpenGLTexture(QOpenGLTexture::Target2D);
+        dataCube->setSize(2 * scan.width(), scan.height());
+        dataCube->setFormat(QOpenGLTexture::RGBA32F);
+        dataCube->setWrapMode(QOpenGLTexture::ClampToBorder);
+        dataCube->setMinificationFilter(QOpenGLTexture::Nearest);
+        dataCube->setMagnificationFilter(QOpenGLTexture::Nearest);
+        dataCube->allocateStorage();
+
+        // COPY FRAME BUFFER TEXTURE FROM GPU TO LOCAL CPU BUFFER
+        dataCube->setData(QOpenGLTexture::RGBA, QOpenGLTexture::Float32, (const void *)scan.constPointer());
+
+        // UPDATE THE DISPLAY ON SCREEN
+        update();
+    }
 }
 
 /****************************************************************************/
@@ -137,8 +260,8 @@ void LAUCodedApertureGLWidget::initializeGL()
 
     // CREATE THE SHADER FOR DISPLAYING 8-COLOR IMAGES ON SCREEN
     setlocale(LC_NUMERIC, "C");
-    prgrm.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
-    prgrm.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiMapToVectorV.frag");
+    prgrm.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiDisplayXYZWRGBA.vert");
+    prgrm.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiDisplayXYZWRGBA.frag");
     prgrm.link();
     setlocale(LC_ALL, "");
 
@@ -149,45 +272,14 @@ void LAUCodedApertureGLWidget::initializeGL()
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
-void LAUCodedApertureGLWidget::onUpdateScan(LAUScan scn)
-{
-    // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
-    if (scn.isValid() && scn.colors() == 8)  {
-        // MAKE A LOCAL COPY OF THE INCOMING SCAN
-        scan = scn;
-
-        // MAKE THIS THE CURRENT OPENGL CONTEXT
-        makeCurrent();
-
-        // DELETE THE OLD DATE CUBE TEXTURE IF IT EXISTS
-        if (dataCube) {
-            delete dataCube;
-        }
-
-        // CREATE THE GPU SIDE TEXTURE TO HOLD THE 3D DATA CUBE
-        dataCube = new QOpenGLTexture(QOpenGLTexture::Target2D);
-        dataCube->setSize(2 * scan.width(), scan.height());
-        dataCube->setFormat(QOpenGLTexture::RGBA32F);
-        dataCube->setWrapMode(QOpenGLTexture::ClampToBorder);
-        dataCube->setMinificationFilter(QOpenGLTexture::Nearest);
-        dataCube->setMagnificationFilter(QOpenGLTexture::Nearest);
-        dataCube->allocateStorage();
-
-        // COPY FRAME BUFFER TEXTURE FROM GPU TO LOCAL CPU BUFFER
-        dataCube->setData(QOpenGLTexture::RGBA, QOpenGLTexture::Float32, (const void *)scan.constPointer());
-
-        // UPDATE THE DISPLAY ON SCREEN
-        update();
-    }
-}
-
-
-/****************************************************************************/
-/****************************************************************************/
-/****************************************************************************/
 void LAUCodedApertureGLWidget::resizeGL(int w, int h)
 {
-    ;
+    // Get the Desktop Widget so that we can get information about multiple monitors connected to the system.
+    QDesktopWidget *dkWidget = QApplication::desktop();
+    QList<QScreen*> screenList = QGuiApplication::screens();
+    qreal devicePixelRatio = screenList[dkWidget->screenNumber(this)]->devicePixelRatio();
+    localHeight = h*devicePixelRatio;
+    localWidth = w*devicePixelRatio;
 }
 
 /****************************************************************************/
@@ -195,35 +287,37 @@ void LAUCodedApertureGLWidget::resizeGL(int w, int h)
 /****************************************************************************/
 void LAUCodedApertureGLWidget::paintGL()
 {
-    ;
-}
+    // ENABLE THE DEPTH FILTER
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
 
-/****************************************************************************/
-/****************************************************************************/
-/****************************************************************************/
-LAUCodedApertureWidget::LAUCodedApertureWidget(LAUScan scan, QWidget *parent) : QWidget(parent), glWidget(NULL), codedApertureFilter(NULL)
-{
-    // INITIALIZE THE CURVATURE FILTER AND
-    // CREATE A GLWIDGET TO DISPLAY THE SCAN
-    if (scan.isValid()) {
-        result = scan.convertToColor(ColorXYZWRGBA);
-        codedApertureFilter = new LAUCodedApertureGLFilter(result);
-        result = codedApertureFilter->reconstructDataCube(result);
+    // BIND THE GLSL PROGRAMS RESPONSIBLE FOR CONVERTING OUR FRAME BUFFER
+    // OBJECT TO AN XYZ+TEXTURE POINT CLOUD FOR DISPLAY ON SCREEN
+    if (dataCube && prgrm.bind()) {
+        glViewport(0, 0, localWidth, localHeight);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // BIND VBOS FOR DRAWING TRIANGLES ON SCREEN
+        if (vertexBuffer.bind()) {
+            if (indexBuffer.bind()) {
+                // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
+                glActiveTexture(GL_TEXTURE0);
+                dataCube->bind();
+                prgrm.setUniformValue("qt_texture", 0);
+                prgrm.setUniformValue("qt_channel", channel%8);
+
+                glVertexAttribPointer(prgrm.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+                prgrm.enableAttributeArray("qt_vertex");
+                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+                // RELEASE THE FRAME BUFFER OBJECT AND ITS ASSOCIATED GLSL PROGRAMS
+                prgrm.release();
+            }
+            vertexBuffer.release();
+        }
+        prgrm.release();
     }
-    glWidget = new LAUCodedApertureGLWidget(scan);
-    glWidget->setMinimumSize(scan.width(), scan.height());
-
-    this->setLayout(new QVBoxLayout());
-    this->setContentsMargins(0, 0, 0, 0);
-    this->layout()->addWidget(glWidget);
-}
-
-/****************************************************************************/
-/****************************************************************************/
-/****************************************************************************/
-LAUCodedApertureWidget::~LAUCodedApertureWidget()
-{
-    qDebug() << "LAUCodedApertureWidget()::~LAUCodedApertureWidget()";
+    return;
 }
 
 /****************************************************************************/
@@ -1302,6 +1396,7 @@ LAUScan LAUCodedApertureGLFilter::reverseCodedAperture(LAUScan scan)
 /****************************************************************************/
 LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
 {
+    LAUScan result;
 //        for (unsigned int row = 0; row < ideal.height(); row++) {
 //            float *buffer = (float *)ideal.constScanLine(row);
 //            for (unsigned int col = 0; col < ideal.width(); col++) {
@@ -1521,8 +1616,8 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
         LAUScan vectorAofX_final = reverseTransform(vectorXi);
         vectorAofX_final.save(QString((save_dir) + QString("vectorAofX_final.tif")));
 
-        LAUScan datacube_final = reverseDWCTransform(vectorXi);
-        datacube_final.save(QString((save_dir) + QString("datacube_final.tif")));
+        result = reverseDWCTransform(vectorXi);
+        result.save(QString((save_dir) + QString("datacube_final.tif")));
 
 //        if (iter ==3){
 //        return(LAUScan());
@@ -1547,7 +1642,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
             }
             // CRITERION BASED ON THE RELATIVE VARIATION OF THE OBJECTIVE FUNCTION
             case 1: {
-                float criterionObjective = abs(f - prev_f) / prev_f;
+                float criterionObjective = fabs(f - prev_f) / prev_f;
                 keep_going = (criterionObjective > tolA);
                 if (verbose) {
                     qDebug() << "Delta obj. = " << criterionObjective << "target = " << tolA;
@@ -1609,14 +1704,9 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
             qDebug() << "||x||_1 = " << sumAbsValue(vectorU) + sumAbsValue(vectorV);
             qDebug() << "Objective function = " << f;
             qDebug() << "Number of non-zero components = " << nonZeroCount;
-
         }
-
     }
-
-
-    // RETURN NOTHING, FOR NOW
-    return (LAUScan());
+    return (result);
 }
 
 /****************************************************************************/

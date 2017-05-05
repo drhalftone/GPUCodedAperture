@@ -56,7 +56,11 @@ int main(int argc, char *argv[])
     qRegisterMetaType<LAUMemoryObject>("LAUMemoryObject");
     qRegisterMetaType<LAUScan>("LAUScan");
 
-    LAUScan scan = LAUScan(QString(msDataSet_dir));
-    LAUCodedApertureDialog dialog(scan);
-    return (dialog.exec());
+    LAUScan scan = LAUScan(QString());
+    if (scan.isValid()){
+        LAUCodedApertureDialog dialog(scan);
+        return (dialog.exec());
+    } else {
+        return(0);
+    }
 }
