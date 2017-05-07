@@ -75,7 +75,7 @@ void LAUCodedApertureWidget::onSetCodedAperture()
     if (filename.isEmpty() == false) {
         LAUScan::lastUsedDirectory = QFileInfo(filename).absolutePath();
         settings.setValue("LAUCodedApertureWidget::lastUsedDirectory", LAUScan::lastUsedDirectory);
-        if (codedApertureFilter){
+        if (codedApertureFilter) {
             codedApertureFilter->setCodedAperture(QImage(filename));
         }
     } else {
@@ -88,12 +88,12 @@ void LAUCodedApertureWidget::onSetCodedAperture()
 /****************************************************************************/
 LAUScan LAUCodedApertureWidget::smoothedScan()
 {
-    if (codedApertureFilter == NULL){
-        return(LAUScan());
+    if (codedApertureFilter == NULL) {
+        return (LAUScan());
     }
 
     LAUScan result = codedApertureFilter->reconstructDataCube(scan);
-    if (result.isValid()){
+    if (result.isValid()) {
         LAUCodedApertureGLWidget *widget = new LAUCodedApertureGLWidget(result);
         widget->setMinimumSize(result.width(), result.height());
 
@@ -107,11 +107,11 @@ LAUScan LAUCodedApertureWidget::smoothedScan()
         connect(buttonBox->button(QDialogButtonBox::Cancel), SIGNAL(clicked()), &dialog, SLOT(reject()));
 
         dialog.layout()->addWidget(buttonBox);
-        if (dialog.exec() == QDialog::Accepted){
-            return(result);
+        if (dialog.exec() == QDialog::Accepted) {
+            return (result);
         }
     }
-    return(LAUScan());
+    return (LAUScan());
 }
 
 /****************************************************************************/
@@ -144,7 +144,7 @@ LAUCodedApertureGLWidget::~LAUCodedApertureGLWidget()
 void LAUCodedApertureGLWidget::wheelEvent(QWheelEvent *event)
 {
     // CHANGE THE ZOOM FACTOR BASED ON HOW MUCH WHEEL HAS MOVED
-    channel += qRound((float)event->angleDelta().y()/160.0);
+    channel += qRound((float)event->angleDelta().y() / 160.0);
 
     // UPDATE THE PROJECTION MATRIX SINCE WE CHANGED THE ZOOM FACTOR
     update();
@@ -276,10 +276,10 @@ void LAUCodedApertureGLWidget::resizeGL(int w, int h)
 {
     // Get the Desktop Widget so that we can get information about multiple monitors connected to the system.
     QDesktopWidget *dkWidget = QApplication::desktop();
-    QList<QScreen*> screenList = QGuiApplication::screens();
+    QList<QScreen *> screenList = QGuiApplication::screens();
     qreal devicePixelRatio = screenList[dkWidget->screenNumber(this)]->devicePixelRatio();
-    localHeight = h*devicePixelRatio;
-    localWidth = w*devicePixelRatio;
+    localHeight = h * devicePixelRatio;
+    localWidth = w * devicePixelRatio;
 }
 
 /****************************************************************************/
@@ -304,7 +304,7 @@ void LAUCodedApertureGLWidget::paintGL()
                 glActiveTexture(GL_TEXTURE0);
                 dataCube->bind();
                 prgrm.setUniformValue("qt_texture", 0);
-                prgrm.setUniformValue("qt_channel", channel%8);
+                prgrm.setUniformValue("qt_channel", channel % 8);
 
                 glVertexAttribPointer(prgrm.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
                 prgrm.enableAttributeArray("qt_vertex");
@@ -711,10 +711,10 @@ LAUScan LAUCodedApertureGLFilter::forwardDWCTransform(LAUScan scan)
             fboXYZWRGBAa->release();
         }
 
-//                        glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAa->texture());
-//                        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
-//                        doneCurrent();
-//                        return(scan);
+        //                        glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAa->texture());
+        //                        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
+        //                        doneCurrent();
+        //                        return(scan);
 
         if (fboXYZWRGBAb->bind()) {
             if (prgrmForwardDWTy.bind()) {
@@ -763,10 +763,10 @@ LAUScan LAUCodedApertureGLFilter::forwardDWCTransform(LAUScan scan)
             fboXYZWRGBAb->release();
         }
 
-//                glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAb->texture());
-//                glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
-//                doneCurrent();
-//                return(scan);
+        //                glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAb->texture());
+        //                glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
+        //                doneCurrent();
+        //                return(scan);
 
         if (fboXYZWRGBAa->bind()) {
             if (prgrmForwardDWTx.bind()) {
@@ -956,9 +956,9 @@ LAUScan LAUCodedApertureGLFilter::forwardDWCTransform(LAUScan scan)
             fboXYZWRGBAb->release();
         }
         // DOWNLOAD THE GPU RESULT BACK TO THE CPU FOR DEBUG
-//        glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAb->texture());
-//        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
-//        return (scan);
+        //        glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAb->texture());
+        //        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
+        //        return (scan);
 
         // BIND THE FRAME BUFFER OBJECT, SHADER, AND VBOS FOR CALCULATING THE DCT ACROSS CHANNELS
         if (fboXYZWRGBAa->bind()) {
@@ -1043,9 +1043,9 @@ LAUScan LAUCodedApertureGLFilter::reverseDWCTransform(LAUScan scan)
             fboXYZWRGBAb->release();
         }
 
-//        glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAb->texture());
-//        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
-//        return (scan);
+        //        glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAb->texture());
+        //        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
+        //        return (scan);
 
         if (fboXYZWRGBAa->bind()) {
             if (prgrmReverseDWTx.bind()) {
@@ -1397,29 +1397,29 @@ LAUScan LAUCodedApertureGLFilter::reverseCodedAperture(LAUScan scan)
 LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
 {
     LAUScan result;
-//        for (unsigned int row = 0; row < ideal.height(); row++) {
-//            float *buffer = (float *)ideal.constScanLine(row);
-//            for (unsigned int col = 0; col < ideal.width(); col++) {
-//                buffer[8 * col + 0] = 0.0f;
-//                buffer[8 * col + 1] = 0.0f;
-//                buffer[8 * col + 2] = 0.0f;
-//                buffer[8 * col + 3] = 0.0f;
-//                buffer[8 * col + 4] = 0.0f;
-//                buffer[8 * col + 5] = 0.0f;
-//                buffer[8 * col + 6] = 0.0f;
-//                buffer[8 * col + 7] = 0.0f;
-//                if (row == ideal.height()/2 && col == ideal.width()/2){
-//                    buffer[8 * col + 0] = 1.0f;
-//                    buffer[8 * col + 1] = 1.0f;
-//                    buffer[8 * col + 2] = 1.0f;
-//                    buffer[8 * col + 3] = 1.0f;
-//                    buffer[8 * col + 4] = 1.0f;
-//                    buffer[8 * col + 5] = 1.0f;
-//                    buffer[8 * col + 6] = 1.0f;
-//                    buffer[8 * col + 7] = 1.0f;
-//                }
-//            }
-//        }
+    //        for (unsigned int row = 0; row < ideal.height(); row++) {
+    //            float *buffer = (float *)ideal.constScanLine(row);
+    //            for (unsigned int col = 0; col < ideal.width(); col++) {
+    //                buffer[8 * col + 0] = 0.0f;
+    //                buffer[8 * col + 1] = 0.0f;
+    //                buffer[8 * col + 2] = 0.0f;
+    //                buffer[8 * col + 3] = 0.0f;
+    //                buffer[8 * col + 4] = 0.0f;
+    //                buffer[8 * col + 5] = 0.0f;
+    //                buffer[8 * col + 6] = 0.0f;
+    //                buffer[8 * col + 7] = 0.0f;
+    //                if (row == ideal.height()/2 && col == ideal.width()/2){
+    //                    buffer[8 * col + 0] = 1.0f;
+    //                    buffer[8 * col + 1] = 1.0f;
+    //                    buffer[8 * col + 2] = 1.0f;
+    //                    buffer[8 * col + 3] = 1.0f;
+    //                    buffer[8 * col + 4] = 1.0f;
+    //                    buffer[8 * col + 5] = 1.0f;
+    //                    buffer[8 * col + 6] = 1.0f;
+    //                    buffer[8 * col + 7] = 1.0f;
+    //                }
+    //            }
+    //        }
     ideal.save(QString((save_dir) + QString("vectorI.tif")));
 
 
@@ -1468,18 +1468,18 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     LAUScan vectorX_ideal_afterDWCT_IDWCT = reverseDWCTransform(vectorX_ideal_afterDWCT);
     vectorX_ideal_afterDWCT_IDWCT.save(QString((save_dir) + QString("vectorX_ideal_afterDWCT_IDWCT.tif")));
 
-//    LAUScan ideal_y = reverseTransform(vectorX_ideal_afterDWCT);
-//    ideal_y.save(QString((save_dir) + QString("ideal_y.tif")));
+    //    LAUScan ideal_y = reverseTransform(vectorX_ideal_afterDWCT);
+    //    ideal_y.save(QString((save_dir) + QString("ideal_y.tif")));
 
-   // return (vectorY);
+    // return (vectorY);
 
     // NOW CALCULATE THE INITIAL ESTIMATE (LINE 290 OF GPSR_BB SCRIPT)
     LAUScan vectorXi = forwardTransform(vectorY);
     vectorXi.save(QString((save_dir) + QString("vectorXi.tif")));
 
 
-//    LAUScan scalar = createScan(0.3, vectorXi);
-//    vectorXi = addScans(vectorXi, scalar);
+    //    LAUScan scalar = createScan(0.3, vectorXi);
+    //    vectorXi = addScans(vectorXi, scalar);
 
     //FOR DEBUG
     LAUScan reconsIdeal = forwardCodedAperture(vectorY);
@@ -1510,7 +1510,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     LAUScan vectorResidue = subtractScans(vectorY, vectorAofX);
     vectorResidue.save(QString((save_dir) + QString("vectorResidue_first.tif")));
 
-   // return (vectorAofX);
+    // return (vectorAofX);
 
     iter = 1;
     alpha = 1;
@@ -1605,7 +1605,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
         vectorResidueBase = addScans(vectorResidueBase, multiplyScans(lambda, auv));
 
         if (verbose) {
-            qDebug() << "Iter = " << iter << ", obj = " << f <<", lambda = " << lambda << ", alpha = " << alpha << ", nonezeros = " << nonZeroCount << ", MSE= " << mse;
+            qDebug() << "Iter = " << iter << ", obj = " << f << ", lambda = " << lambda << ", alpha = " << alpha << ", nonezeros = " << nonZeroCount << ", MSE= " << mse;
         }
 
         // UPDATE ITERATION COUNTS (LINE 530 OF GPSR_BB SCRIPT)
@@ -1619,9 +1619,9 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
         result = reverseDWCTransform(vectorXi);
         result.save(QString((save_dir) + QString("datacube_final.tif")));
 
-//        if (iter ==3){
-//        return(LAUScan());
-//        }
+        //        if (iter ==3){
+        //        return(LAUScan());
+        //        }
 
         //(LINE 539 OF GPSR_BB SCRIPT)
         switch (stopCriterion) {
@@ -1922,7 +1922,7 @@ int LAUCodedApertureGLFilter::nonZeroElements(LAUScan scan)
     }
     pixVec = _mm_hadd_epi32(pixVec, pixVec);
     pixVec = _mm_hadd_epi32(pixVec, pixVec);
-    return  (qAbs(_mm_extract_epi32(pixVec, 0)));
+    return (qAbs(_mm_extract_epi32(pixVec, 0)));
 }
 
 /****************************************************************************/
