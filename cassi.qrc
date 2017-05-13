@@ -26,5 +26,7 @@
         <file>Shaders/cassiReverseDWTy.frag</file>
         <file>Shaders/cassiBuildCodedApertureLeft.frag</file>
         <file>Shaders/cassiBuildCodedApertureRight.frag</file>
+        <file>Shaders/cassiDisplayXYZWRGBA.frag</file>
+        <file>Shaders/cassiDisplayXYZWRGBA.vert</file>
     </qresource>
 </RCC>
