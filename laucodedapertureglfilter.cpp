@@ -669,10 +669,11 @@ LAUScan LAUCodedApertureGLFilter::forwardDWCTransform(LAUScan scan)
             fboXYZWRGBAb->release();
         }
 
-//                glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAb->texture());
-//                glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
-//                doneCurrent();
-//                return(scan);
+
+        //        glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAb->texture());
+        //        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
+        //        doneCurrent();
+        //        return(scan);
 
         if (fboXYZWRGBAa->bind()) {
             if (prgrmForwardDWTx.bind()) {
@@ -1313,15 +1314,16 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
 //                buffer[8 * col + 5] = 0.0f;
 //                buffer[8 * col + 6] = 0.0f;
 //                buffer[8 * col + 7] = 0.0f;
-//                if (row == ideal.height()/2 && col == ideal.width()/2){
-//                    buffer[8 * col + 0] = 1.0f;
-//                    buffer[8 * col + 1] = 1.0f;
-//                    buffer[8 * col + 2] = 1.0f;
-//                    buffer[8 * col + 3] = 1.0f;
-//                    buffer[8 * col + 4] = 1.0f;
-//                    buffer[8 * col + 5] = 1.0f;
-//                    buffer[8 * col + 6] = 1.0f;
-//                    buffer[8 * col + 7] = 1.0f;
+                //if (row == ideal.height()/2 && col == ideal.width()/2){
+//              if (col < 64 || col > ideal.width() - 64){
+//                    buffer[8 * col + 0] = 0.0f;
+//                    buffer[8 * col + 1] = 0.0f;
+//                    buffer[8 * col + 2] = 0.0f;
+//                    buffer[8 * col + 3] = 0.0f;
+//                    buffer[8 * col + 4] = 0.0f;
+//                    buffer[8 * col + 5] = 0.0f;
+//                    buffer[8 * col + 6] = 0.0f;
+//                    buffer[8 * col + 7] = 0.0f;
 //                }
 //            }
 //        }
@@ -1350,7 +1352,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     alphaMin = 1e-30;
     alphaMax = 1e30;
     maxIterA = 10000;
-    minIterA = 3;
+    minIterA = 6;
     maxIterD = 200;
     minIterD = 5;
     continuationSteps = 0;
@@ -1367,60 +1369,75 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     LAUScan vectorZ = reverseCodedAperture(vectorW);
     vectorZ.save(QString((save_dir) + QString("vectorZ.tif")));
 
-    LAUScan vectorX_ideal_afterDWCT = forwardDWCTransform(ideal);
-    vectorX_ideal_afterDWCT.save(QString((save_dir) + QString("vectorX_ideal_afterDWCT_nodct.tif")));
+    // FOR DEBUG
+//    LAUScan vectorX_ideal_afterDWCT = forwardDWCTransform(ideal);
+//    vectorX_ideal_afterDWCT.save(QString((save_dir) + QString("vectorX_ideal_afterDWCT.tif")));
 
-    LAUScan vectorX_ideal_afterDWCT_IDWCT = reverseDWCTransform(vectorX_ideal_afterDWCT);
-    vectorX_ideal_afterDWCT_IDWCT.save(QString((save_dir) + QString("vectorX_ideal_afterDWCT_IDWCT.tif")));
+//    LAUScan vectorX_ideal_afterDWCT_IDWCT = reverseDWCTransform(vectorX_ideal_afterDWCT);
+//    vectorX_ideal_afterDWCT_IDWCT.save(QString((save_dir) + QString("vectorX_ideal_afterDWCT_IDWCT.tif")));
 
 //    LAUScan ideal_y = reverseTransform(vectorX_ideal_afterDWCT);
 //    ideal_y.save(QString((save_dir) + QString("ideal_y.tif")));
 
-   // return (vectorY);
-
     // NOW CALCULATE THE INITIAL ESTIMATE (LINE 290 OF GPSR_BB SCRIPT)
     LAUScan vectorXi = forwardTransform(vectorY);
-    vectorXi.save(QString((save_dir) + QString("vectorXi.tif")));
+    vectorXi.save(QString((save_dir) + QString("vectorXi_initial.tif")));
 
+    LAUScan vectorX = forwardTransform(vectorY);
+    vectorX.save(QString((save_dir) + QString("vectorX.tif")));
 
+    //return (vectorXi);
 //    LAUScan scalar = createScan(0.3, vectorXi);
 //    vectorXi = addScans(vectorXi, scalar);
 
     //FOR DEBUG
-    LAUScan reconsIdeal = forwardCodedAperture(vectorY);
-    reconsIdeal.save(QString((save_dir) + QString("reconsIdeal.tif")));
+//    LAUScan reconsIdeal = forwardCodedAperture(vectorY);
+//    reconsIdeal.save(QString((save_dir) + QString("reconsIdeal.tif")));
+
+//    LAUScan vectorXitocube = reverseDWCTransform(vectorXi);
+//    vectorXitocube.save(QString((save_dir) + QString("vectorXitocube.tif")));
+
+//    LAUScan vectorXitoCubetoY = reverseCodedAperture(vectorXitocube);
+//    //LAUScan vectorXitoCubetoY = reverseCodedAperture(multiplyScans(0.9, vectorXitocube));
+//    vectorXitoCubetoY.save(QString((save_dir) + QString("vectorXitoCubetoY.tif")));
+
+    //vectorXi = multiplyScans(0.9, vectorXi);
+
+
 
     // CALL METHOD FOR CALCULATING THE INITIAL TAU PARAMETER ACCORDING TO  0.5 * max(abs(AT(y)))
     //firstTau = maxAbsValue(vectorXi) / 2.0f;
     firstTau = 0.35;
 
+
     // INITIALIZE U AND V VECTORS (LINES 345 AND 346 OF GPSR_BB SCRIPT)
     LAUScan vectorU = computeVectorU(vectorXi);
-    vectorU.save(QString((save_dir) + QString("vectorU.tif")));
+    vectorU.save(QString((save_dir) + QString("vectorU_initial.tif")));
 
     LAUScan vectorV = computeVectorV(vectorXi);
-    vectorV.save(QString((save_dir) + QString("vectorV.tif")));
+    vectorV.save(QString((save_dir) + QString("vectorV_initial.tif")));
 
     // GET THE NUMBER OF NON-ZERO ELEMENTS IN X (LINE 350 OF GPSR_BB SCRIPT)
     int nonZeroCount = nonZeroElements(vectorXi);
 
     // GET THE GROUND TRUTH X
     LAUScan grtruth = forwardDWCTransform(ideal);
-    grtruth.save(QString((save_dir) + QString("grtruth_new.tif")));
+    grtruth.save(QString((save_dir) + QString("grtruth.tif")));
 
     // CALCULATE RESIDUE (LINE 402 OF GPSR_BB SCRIPT)
     LAUScan vectorAofX = reverseTransform(vectorXi);
     vectorAofX.save(QString((save_dir) + QString("vectorAofX.tif")));
 
+    //LAUScan vectorResidue = subtractScans(vectorY, multiplyScans(0.9, vectorAofX));
     LAUScan vectorResidue = subtractScans(vectorY, vectorAofX);
     vectorResidue.save(QString((save_dir) + QString("vectorResidue_first.tif")));
 
-   // return (vectorAofX);
+    //return (vectorAofX);
 
     iter = 1;
     alpha = 1;
     //COMPUTE INITIAL VALUE OF THE OBJECTIVE FUNCTION (LINE 438 OF GPSR_BB SCRIPT)
-    f = objectiveFun(vectorResidue, vectorU, vectorV, firstTau);
+    float f = objectiveFun(vectorResidue, vectorU, vectorV, firstTau);
     float mse = computeMSE(grtruth, vectorXi);
     if (verbose) {
         qDebug() << "Setting firstTau =" << firstTau;
@@ -1435,6 +1452,9 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     //CONTROL VARIABLE FOR THE OUTER LOOP AND ITER COUNTER
     int keep_going = 1;
 
+
+    //return(LAUScan());
+
     //(LINE 461 OF GPSR_BB SCRIPT)
     while (keep_going) {
         // CALCULATE THE GRADIENT BASED ON THE FORWARD TRANSFORM OF THE RESIDUE_BASE(LINE 464 OF GPSR_BB SCRIPT)
@@ -1443,7 +1463,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
 
         LAUScan scantau = createScan(firstTau, vectorGradient);
         scantau.save(QString((save_dir) + QString("scantau.tif")));
-        LAUScan term = subtractScans(vectorGradient, vectorXi);
+        LAUScan term = subtractScans(vectorGradient, vectorX);
         term.save(QString((save_dir) + QString("term.tif")));
         LAUScan gradu = addScans(term, scantau);
         gradu.save(QString((save_dir) + QString("gradu.tif")));
@@ -1467,7 +1487,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
         float dGd = innerProduct(auv, auv);
 
         if (monotone == true) {
-            float lambda0 = - (innerProduct(gradu, du) + innerProduct(gradv, dv)) / (1e-20 + dGd);
+            float lambda0 = - (innerProduct(gradu, du) + innerProduct(gradv, dv)) / (1e-300 + dGd);
             if (lambda0 < 0) {
                 qDebug() << "ERROR: lambda0 = " << lambda0 << "Negative. Quit";
                 return (LAUScan());
@@ -1479,27 +1499,31 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
 
         //(LINE 494 OF GPSR_BB SCRIPT)
         vectorU = addScans(old_u, multiplyScans(lambda, du));
-        vectorU.save(QString((save_dir) + QString("vectorU_new.tif")));
+        vectorU.save(QString((save_dir) + QString("vectorU_iter1add.tif")));
         vectorV = addScans(old_v, multiplyScans(lambda, dv));
+        vectorV.save(QString((save_dir) + QString("vectorV_iter1add.tif")));
         LAUScan UVmin = minScans(vectorU, vectorV);
+        UVmin.save(QString((save_dir) + QString("UVmin_iter1.tif")));
         vectorU = subtractScans(vectorU, UVmin);
-        vectorU.save(QString((save_dir) + QString("vectorU_new1.tif")));
+        vectorU.save(QString((save_dir) + QString("vectorU_iter1sub.tif")));
         vectorV = subtractScans(vectorV, UVmin);
+        vectorV.save(QString((save_dir) + QString("vectorV_iter1sub.tif")));
         vectorXi = subtractScans(vectorU, vectorV);
-        vectorXi.save(QString((save_dir) + QString("vectorXi_new.tif")));
+        vectorXi.save(QString((save_dir) + QString("vectorXi_iter1.tif")));
 
         //CALCULATE NONZERO PATTERN AND NUMBER OF NONZEROS(LINE 502 OF GPSR_BB SCRIPT)
         int prev_nonZeroCount = nonZeroCount;
         int nonZeroCount = nonZeroElements(vectorXi);
 
         //UPDATE RESIDUAL AND FUNCTION(LINE 507 OF GPSR_BB SCRIPT)
-        LAUScan vectorResidue = subtractScans(subtractScans(vectorY, vectorResidueBase), multiplyScans(lambda, auv));
+        vectorResidue = subtractScans(subtractScans(vectorY, vectorResidueBase), multiplyScans(lambda, auv));
         vectorResidue.save(QString((save_dir) + QString("vectorResidue_new.tif")));
         float prev_f = f;
         f = objectiveFun(vectorResidue, vectorU, vectorV, firstTau);
 
         //COMPUTER NEW ALPHA(LINE 513 OF GPSR_BB SCRIPT)
         float dd = innerProduct(du, du) + innerProduct(dv, dv);
+       // qDebug()<<"dd = "<<dd<<"dGd = "<<dGd<<"dd/dGd = "<<dd/dGd;
         if (dGd <= 0) {
             qDebug() << "nonpositive curvature detected dGd = " << dGd;
             alpha = alphaMax;
@@ -1507,7 +1531,8 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
             alpha = qMin(alphaMax, qMax(alphaMin, dd / dGd));
         }
 
-        vectorResidueBase = addScans(vectorResidueBase, multiplyScans(lambda, auv));
+        LAUScan temp_vectorResidueBase = addScans(vectorResidueBase, multiplyScans(lambda, auv));
+        vectorResidueBase = temp_vectorResidueBase;
 
         if (verbose) {
             qDebug() << "Iter = " << iter << ", obj = " << f <<", lambda = " << lambda << ", alpha = " << alpha << ", nonezeros = " << nonZeroCount << ", MSE= " << mse;
@@ -1524,9 +1549,9 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
         LAUScan datacube_final = reverseDWCTransform(vectorXi);
         datacube_final.save(QString((save_dir) + QString("datacube_final.tif")));
 
-//        if (iter ==3){
-//        return(LAUScan());
-//        }
+        if (iter == 2){
+        return(LAUScan());
+        }
 
         //(LINE 539 OF GPSR_BB SCRIPT)
         switch (stopCriterion) {
