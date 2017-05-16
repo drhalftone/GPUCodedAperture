@@ -437,7 +437,19 @@ void LAUCodedApertureGLFilter::initialize()
         initializeShaders();
 
         // INITIALIZE THE CODED APERTURE TEXTURE
-        setCodedAperture(QImage(":/Images/Images/CASSIMask.bmp"));
+        QSettings settings;
+        QString directory = settings.value("LAUScan::lastUsedDirectory", QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).toString();
+        QStringList fileNames = QFileDialog::getOpenFileNames(0,QString("BMP files"), directory, QString("*.bmp") );
+        if(!fileNames.isEmpty() )
+        {
+            for (int i =0;i<fileNames.count();i++){
+                Masks<<QImage(fileNames.at(i));
+                QImage Mask = Masks.at(i);
+            }
+
+        }
+        setCodedAperture(Masks);
+        //setCodedAperture(QImage(":/Images/Images/CASSIMask.bmp"));
 
         // RELEASE THIS CONTEXT AS THE CURRENT GL CONTEXT
         doneCurrent();
@@ -1626,7 +1638,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
 
         //COMPUTER NEW ALPHA(LINE 513 OF GPSR_BB SCRIPT)
         float dd = innerProduct(du, du) + innerProduct(dv, dv);
-       // qDebug()<<"dd = "<<dd<<"dGd = "<<dGd<<"dd/dGd = "<<dd/dGd;
+       // qDebug()<<"dd = "<<dd<<",dGd = "<<dGd<<",dd/dGd = "<<dd/dGd;
         if (dGd <= 0) {
             qDebug() << "nonpositive curvature detected dGd = " << dGd;
             alpha = alphaMax;
@@ -1645,7 +1657,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
         iter = iter + 1;
         mse = computeMSE(grtruth, vectorXi);
 
-        // FINAL RECONSTRUCTED SNAPSHOT ON CASSI BY SOLVED X
+        // FINAL RECONSTRUCTED SNAPSHOT AND DATACUBE BY SOLVED X
         LAUScan vectorAofX_final = reverseTransform(vectorXi);
         vectorAofX_final.save(QString((save_dir) + QString("vectorAofX_final.tif")));
 
@@ -1653,7 +1665,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
         result.save(QString((save_dir) + QString("datacube_final.tif")));
 
 
-//        if (iter == 2){
+//        if (iter == 3){
 //        return(LAUScan());
 //        }
 

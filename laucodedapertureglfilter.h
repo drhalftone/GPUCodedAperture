@@ -225,6 +225,7 @@ private:
     float alpha;
     float lambda;
     float f;                        // object function;
+    QList<QImage> Masks;
 
     void initializeParameters();
     void initializeShaders();
