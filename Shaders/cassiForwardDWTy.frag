@@ -1,6 +1,7 @@
 #version 330 core
 
 uniform sampler2D qt_texture;        // THIS TEXTURE HOLDS THE SCANS
+uniform      vec2 qt_position;       // TOP LEFT CORNER OF FBO
 uniform     float coefficients[16];  // HOLDS THE DWT FILTER
 
 layout(location = 0, index = 0) out vec4 qt_fragColor;
@@ -8,7 +9,7 @@ layout(location = 0, index = 0) out vec4 qt_fragColor;
 void main()
 {
     // GET THE FRAGMENT PIXEL COORDINATE
-    ivec2 coord = ivec2(gl_FragCoord.xy) * ivec2(1,2);
+    ivec2 coord = ivec2(gl_FragCoord.xy - qt_position) * ivec2(1,2);
 
     // ITERATE THROUGH EACH PIXEL IN THE WINDOW
     qt_fragColor = vec4(0.0, 0.0, 0.0, 0.0);

@@ -199,9 +199,7 @@ private:
     QOpenGLFramebufferObject *fboCodeAperLeft, *fboCodeAperRight, *fboSpectralModel;
 
     QOpenGLFramebufferObject *fboDWTa, *fboDWTb, *fboDWTc, *fboDWTd, *fboDWTe, *fboDWTf;
-    QOpenGLFramebufferObject *fboDWTA,   *fboDWTB,   *fboDWTC,   *fboDWTD;
-    QOpenGLFramebufferObject *fboDWTAA,  *fboDWTAB,  *fboDWTAC,  *fboDWTAD;
-    QOpenGLFramebufferObject *fboDWTAAA, *fboDWTAAB, *fboDWTAAC, *fboDWTAAD;
+    QOpenGLFramebufferObject *fboDWT, *fboDWTA, *fboDWTAA, *fboDWTAAA;
 
     QOpenGLShaderProgram prgrmForwardDWTx, prgrmForwardDWTy;
     QOpenGLShaderProgram prgrmForwardDCT, prgrmReverseDCT;
@@ -209,7 +207,7 @@ private:
     QOpenGLShaderProgram prgrmForwardCodedAperture, prgrmReverseCodedAperture;
     QOpenGLShaderProgram prgrmU, prgrmV, prgrmScalarMSE, prgrmScalarADD;
 
-    QList<QPoint> dwtBlockSizes;
+    QList<QSize> dwtBlockSizes;
     QList<QPoint> dwtTopLeftCorners;
 
     static float LoD[16], HiD[16], LoR[16], HiR[16];
