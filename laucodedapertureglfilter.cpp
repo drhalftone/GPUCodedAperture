@@ -412,11 +412,11 @@ LAUCodedApertureGLFilter::~LAUCodedApertureGLFilter()
         if (fboScalarB) {
             delete fboScalarB;
         }
-        if (fboXYZWRGBAa) {
-            delete fboXYZWRGBAa;
+        if (fboDataCube) {
+            delete fboDataCube;
         }
-        if (fboXYZWRGBAb) {
-            delete fboXYZWRGBAb;
+        if (fboCSDataCube) {
+            delete fboCSDataCube;
         }
         if (txtCodeAper) {
             delete txtCodeAper;
@@ -432,6 +432,9 @@ LAUCodedApertureGLFilter::~LAUCodedApertureGLFilter()
         }
         if (dataCube) {
             delete dataCube;
+        }
+        if (csDataCube) {
+            delete csDataCube;
         }
         if (spectralMeasurement) {
             delete spectralMeasurement;
@@ -633,11 +636,11 @@ void LAUCodedApertureGLFilter::initializeTextures()
     fboFormat.setInternalTextureFormat(GL_RGBA32F);
 
     // CREATE THE INTERMEDIATE FBOS FOR THE FORWARD AND INVERSE TRANSFORMS
-    fboXYZWRGBAa = new QOpenGLFramebufferObject(2 * numCols, numRows, fboFormat);
-    fboXYZWRGBAa->release();
+    fboDataCube = new QOpenGLFramebufferObject(2 * numCols, numRows, fboFormat);
+    fboDataCube->release();
 
-    fboXYZWRGBAb = new QOpenGLFramebufferObject(2 * numCols, numRows, fboFormat);
-    fboXYZWRGBAb->release();
+    fboCSDataCube = new QOpenGLFramebufferObject(2 * numCols, numRows, fboFormat);
+    fboCSDataCube->release();
 
     fboCodeAperLeft = new QOpenGLFramebufferObject(2 * numCols, numRows, fboFormat);
     fboCodeAperLeft->release();
@@ -650,16 +653,19 @@ void LAUCodedApertureGLFilter::initializeTextures()
     dwtBlockSizes << QSize(2 * (numCols / 4 + 12), numRows / 4 + 12); // AA
     dwtBlockSizes << QSize(2 * (numCols / 8 + 14), numRows / 8 + 14); // AAA
 
+    // THESE ARE THE TOP LEFT CORNERS FOR THE LOWEST FREQUENCY BANDS
     dwtTopLeftCorners << QPoint(0 * dwtBlockSizes.at(2).width(), 0 * dwtBlockSizes.at(2).height());  // AAA
     dwtTopLeftCorners << QPoint(1 * dwtBlockSizes.at(2).width(), 0 * dwtBlockSizes.at(2).height());  // AAB
     dwtTopLeftCorners << QPoint(0 * dwtBlockSizes.at(2).width(), 1 * dwtBlockSizes.at(2).height());  // AAC
     dwtTopLeftCorners << QPoint(1 * dwtBlockSizes.at(2).width(), 1 * dwtBlockSizes.at(2).height());  // AAD
 
+    // THESE ARE THE TOP LEFT CORNERS FOR THE MID FREQUENCY BANDS
     dwtTopLeftCorners << QPoint(0 * dwtBlockSizes.at(2).width(), 0 * dwtBlockSizes.at(2).height());  // AA
     dwtTopLeftCorners << QPoint(2 * dwtBlockSizes.at(2).width(), 0 * dwtBlockSizes.at(2).height());  // AB
     dwtTopLeftCorners << QPoint(0 * dwtBlockSizes.at(2).width(), 2 * dwtBlockSizes.at(2).height());  // AC
     dwtTopLeftCorners << QPoint(2 * dwtBlockSizes.at(2).width(), 2 * dwtBlockSizes.at(2).height());  // AD
 
+    // THESE ARE THE TOP LEFT CORNERS FOR THE HIGHEST FREQUENCY BANDS
     dwtTopLeftCorners << QPoint(0 * dwtBlockSizes.at(2).width() + 0 * dwtBlockSizes.at(1).width(), 0 * dwtBlockSizes.at(2).height() + 0 * dwtBlockSizes.at(1).height());  // AA
     dwtTopLeftCorners << QPoint(2 * dwtBlockSizes.at(2).width() + 1 * dwtBlockSizes.at(1).width(), 0 * dwtBlockSizes.at(2).height() + 0 * dwtBlockSizes.at(1).height());  // AB
     dwtTopLeftCorners << QPoint(0 * dwtBlockSizes.at(2).width() + 0 * dwtBlockSizes.at(1).width(), 2 * dwtBlockSizes.at(2).height() + 1 * dwtBlockSizes.at(1).height());  // AC
@@ -703,6 +709,15 @@ void LAUCodedApertureGLFilter::initializeTextures()
 
     fboScalarB = new QOpenGLFramebufferObject(numCols, numRows, fboFormat);
     fboScalarB->release();
+
+    // CREATE A COMPRESSED SPACE DATA CUBE TEXTURE
+    csDataCube = new QOpenGLTexture(QOpenGLTexture::Target2D);
+    csDataCube->setSize(fboDWT->width(), fboDWT->height());
+    csDataCube->setFormat(QOpenGLTexture::RGBA32F);
+    csDataCube->setWrapMode(QOpenGLTexture::ClampToBorder);
+    csDataCube->setMinificationFilter(QOpenGLTexture::Nearest);
+    csDataCube->setMagnificationFilter(QOpenGLTexture::Nearest);
+    csDataCube->allocateStorage();
 }
 
 /****************************************************************************/
@@ -722,13 +737,14 @@ void LAUCodedApertureGLFilter::initializeParameters()
     fboDWTf = NULL;
 
     dataCube = NULL;
+    csDataCube = NULL;
     txtScalarA = NULL;
     txtScalarB = NULL;
     fboScalarA = NULL;
     fboScalarB = NULL;
     txtCodeAper = NULL;
-    fboXYZWRGBAa = NULL;
-    fboXYZWRGBAb = NULL;
+    fboDataCube = NULL;
+    fboCSDataCube = NULL;
     fboCodeAperLeft = NULL;
     fboCodeAperRight = NULL;
     fboSpectralModel = NULL;
@@ -740,12 +756,11 @@ void LAUCodedApertureGLFilter::initializeParameters()
 /****************************************************************************/
 LAUScan LAUCodedApertureGLFilter::forwardDWCTransform(LAUScan scan)
 {
-    // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
-    if (scan.colors() != 8)  {
-        return (LAUScan());
-    }
+    // CREATE A RETURN SCAN
+    LAUScan result = LAUScan();
 
-    if (makeCurrent(surface)) {
+    // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
+    if (scan.colors() == 8 && makeCurrent(surface)) {
         // COPY FRAME BUFFER TEXTURE FROM GPU TO LOCAL CPU BUFFER
         dataCube->setData(QOpenGLTexture::RGBA, QOpenGLTexture::Float32, (const void *)scan.constPointer());
 
@@ -1412,14 +1427,15 @@ LAUScan LAUCodedApertureGLFilter::forwardDWCTransform(LAUScan scan)
         }
 
         // DOWNLOAD THE GPU RESULT BACK TO THE CPU
-        LAUScan result = LAUScan(fboDWT->width() / 2, fboDWT->height(), ColorXYZWRGBA);
+        result = LAUScan(fboDWT->width() / 2, fboDWT->height(), ColorXYZWRGBA);
         glBindTexture(GL_TEXTURE_2D, fboDWT->texture());
         glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)result.pointer());
+
+        // RELEASE THE CURRENT OPENGL CONTEXT
         doneCurrent();
-        return (result);
     }
     // RETURN THE UPDATED SCAN
-    return (LAUScan());
+    return (result);
 }
 
 /****************************************************************************/
@@ -1427,103 +1443,36 @@ LAUScan LAUCodedApertureGLFilter::forwardDWCTransform(LAUScan scan)
 /****************************************************************************/
 LAUScan LAUCodedApertureGLFilter::reverseDWCTransform(LAUScan scan)
 {
+    // CREATE A RETURN SCAN
+    LAUScan result = LAUScan();
+
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
-    if (scan.colors() != 8)  {
-        return (LAUScan());
-    }
-
-    if (makeCurrent(surface)) {
+    if (scan.colors() == 8 && makeCurrent(surface)) {
         // COPY FRAME BUFFER TEXTURE FROM GPU TO LOCAL CPU BUFFER
-        dataCube->setData(QOpenGLTexture::RGBA, QOpenGLTexture::Float32, (const void *)scan.constPointer());
+        csDataCube->setData(QOpenGLTexture::RGBA, QOpenGLTexture::Float32, (const void *)scan.constPointer());
 
-        if (fboXYZWRGBAb->bind()) {
-            if (prgrmReverseDCT.bind()) {
-                if (vertexBuffer.bind()) {
-                    if (indexBuffer.bind()) {
-                        // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                        glViewport(0, 0, fboXYZWRGBAb->width(), fboXYZWRGBAb->height());
-                        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-                        // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
-                        glActiveTexture(GL_TEXTURE0);
-                        dataCube->bind();
-                        prgrmReverseDCT.setUniformValue("qt_texture", 0);
-
-                        // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
-                        glVertexAttribPointer(prgrmReverseDCT.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
-                        prgrmReverseDCT.enableAttributeArray("qt_vertex");
-
-                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-
-                        // RELEASE THE FRAME BUFFER OBJECT AND ITS ASSOCIATED GLSL PROGRAMS
-                        indexBuffer.release();
-                    }
-                    vertexBuffer.release();
-                }
-                prgrmReverseDCT.release();
-            }
-            fboXYZWRGBAb->release();
-        }
-
-        //        glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAb->texture());
-        //        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
-        //        return (scan);
-
-        if (fboXYZWRGBAa->bind()) {
-            if (prgrmReverseDWTx.bind()) {
-                if (vertexBuffer.bind()) {
-                    if (indexBuffer.bind()) {
-                        // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                        glViewport(0, 0, fboXYZWRGBAa->width() / 4, fboXYZWRGBAa->height() / 4);
-                        glScissor(0, 0, fboXYZWRGBAa->width() / 4, fboXYZWRGBAa->height() / 4);
-
-                        // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
-                        glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAb->texture());
-                        prgrmReverseDWTx.setUniformValue("qt_texture", 0);
-
-                        // SET THE COEFFICIENTS TO THE LOW-PASS DECOMPOSITION SYMMLET 8 FILTER
-                        prgrmReverseDWTx.setUniformValueArray("coefficientsA", LoR, 16, 1);
-                        prgrmReverseDWTx.setUniformValueArray("coefficientsB", HiR, 16, 1);
-
-                        // SET THE SCALE AND OFFSET VALUES TO MAP INPUT PIXELS TO OUTPUT PIXELS
-                        prgrmReverseDWTx.setUniformValue("offset", fboXYZWRGBAa->width() / 8);
-
-                        // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
-                        glVertexAttribPointer(prgrmReverseDWTx.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
-                        prgrmReverseDWTx.enableAttributeArray("qt_vertex");
-
-                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-
-                        // RELEASE THE FRAME BUFFER OBJECT AND ITS ASSOCIATED GLSL PROGRAMS
-                        indexBuffer.release();
-                    }
-                    vertexBuffer.release();
-                }
-                prgrmReverseDWTx.release();
-            }
-            fboXYZWRGBAa->release();
-        }
-
-        if (fboXYZWRGBAb->bind()) {
+        // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
+        // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
+        if (fboDWTe->bind()) {
             if (prgrmReverseDWTy.bind()) {
                 if (vertexBuffer.bind()) {
                     if (indexBuffer.bind()) {
                         // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                        glViewport(0, 0, fboXYZWRGBAb->width() / 4, fboXYZWRGBAb->height() / 4);
-                        glScissor(0, 0, fboXYZWRGBAb->width() / 4, fboXYZWRGBAb->height() / 4);
+                        glViewport(0, 0, fboDWTe->width(), fboDWTe->height());
 
                         // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
                         glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAa->texture());
-                        prgrmReverseDWTy.setUniformValue("qt_texture", 0);
+                        csDataCube->bind();
+                        prgrmReverseDWTy.setUniformValue("qt_textureA", 0);
+                        prgrmReverseDWTy.setUniformValue("qt_textureB", 0);
 
-                        // SET THE COEFFICIENTS TO THE LOW-PASS DECOMPOSITION SYMMLET 8 FILTER
+                        // SET THE TOP-LEFT CORNERS INSIDE THE COMPRESSED DATA CUBE TEXTURE
+                        prgrmReverseDWTy.setUniformValue("qt_positionA", QPointF(dwtTopLeftCorners.at(0)));
+                        prgrmReverseDWTy.setUniformValue("qt_positionB", QPointF(dwtTopLeftCorners.at(1)));
+
+                        // SET THE COEFFICIENTS TO THE HIGH AND LOW RECONSTRUCTION SYMMLET 8 FILTERS
                         prgrmReverseDWTy.setUniformValueArray("coefficientsA", LoR, 16, 1);
                         prgrmReverseDWTy.setUniformValueArray("coefficientsB", HiR, 16, 1);
-
-                        // SET THE SCALE AND OFFSET VALUES TO MAP INPUT PIXELS TO OUTPUT PIXELS
-                        prgrmReverseDWTy.setUniformValue("offset", fboXYZWRGBAb->height() / 8);
 
                         // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
                         glVertexAttribPointer(prgrmReverseDWTy.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
@@ -1538,64 +1487,29 @@ LAUScan LAUCodedApertureGLFilter::reverseDWCTransform(LAUScan scan)
                 }
                 prgrmReverseDWTy.release();
             }
-            fboXYZWRGBAb->release();
+            fboDWTe->release();
         }
 
-        if (fboXYZWRGBAa->bind()) {
-            if (prgrmReverseDWTx.bind()) {
-                if (vertexBuffer.bind()) {
-                    if (indexBuffer.bind()) {
-                        // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                        glViewport(0, 0, fboXYZWRGBAa->width() / 2, fboXYZWRGBAa->height() / 2);
-                        glScissor(0, 0, fboXYZWRGBAa->width() / 2, fboXYZWRGBAa->height() / 2);
-
-                        // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
-                        glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAb->texture());
-                        prgrmReverseDWTx.setUniformValue("qt_texture", 0);
-
-                        // SET THE COEFFICIENTS TO THE LOW-PASS DECOMPOSITION SYMMLET 8 FILTER
-                        prgrmReverseDWTx.setUniformValueArray("coefficientsA", LoR, 16, 1);
-                        prgrmReverseDWTx.setUniformValueArray("coefficientsB", HiR, 16, 1);
-
-                        // SET THE SCALE AND OFFSET VALUES TO MAP INPUT PIXELS TO OUTPUT PIXELS
-                        prgrmReverseDWTx.setUniformValue("offset", fboXYZWRGBAa->width() / 4);
-
-                        // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
-                        glVertexAttribPointer(prgrmReverseDWTx.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
-                        prgrmReverseDWTx.enableAttributeArray("qt_vertex");
-
-                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-
-                        // RELEASE THE FRAME BUFFER OBJECT AND ITS ASSOCIATED GLSL PROGRAMS
-                        indexBuffer.release();
-                    }
-                    vertexBuffer.release();
-                }
-                prgrmReverseDWTx.release();
-            }
-            fboXYZWRGBAa->release();
-        }
-
-        if (fboXYZWRGBAb->bind()) {
+        if (fboDWTf->bind()) {
             if (prgrmReverseDWTy.bind()) {
                 if (vertexBuffer.bind()) {
                     if (indexBuffer.bind()) {
                         // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                        glViewport(0, 0, fboXYZWRGBAb->width() / 2, fboXYZWRGBAb->height() / 2);
-                        glScissor(0, 0, fboXYZWRGBAb->width() / 2, fboXYZWRGBAb->height() / 2);
+                        glViewport(0, 0, fboDWTf->width(), fboDWTf->height());
 
                         // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
                         glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAa->texture());
-                        prgrmReverseDWTy.setUniformValue("qt_texture", 0);
+                        csDataCube->bind();
+                        prgrmReverseDWTy.setUniformValue("qt_textureA", 0);
+                        prgrmReverseDWTy.setUniformValue("qt_textureB", 0);
 
-                        // SET THE COEFFICIENTS TO THE LOW-PASS DECOMPOSITION SYMMLET 8 FILTER
+                        // SET THE TOP-LEFT CORNERS INSIDE THE COMPRESSED DATA CUBE TEXTURE
+                        prgrmReverseDWTy.setUniformValue("qt_positionA", QPointF(dwtTopLeftCorners.at(2)));
+                        prgrmReverseDWTy.setUniformValue("qt_positionB", QPointF(dwtTopLeftCorners.at(3)));
+
+                        // SET THE COEFFICIENTS TO THE HIGH AND LOW RECONSTRUCTION SYMMLET 8 FILTERS
                         prgrmReverseDWTy.setUniformValueArray("coefficientsA", LoR, 16, 1);
                         prgrmReverseDWTy.setUniformValueArray("coefficientsB", HiR, 16, 1);
-
-                        // SET THE SCALE AND OFFSET VALUES TO MAP INPUT PIXELS TO OUTPUT PIXELS
-                        prgrmReverseDWTy.setUniformValue("offset", fboXYZWRGBAb->height() / 4);
 
                         // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
                         glVertexAttribPointer(prgrmReverseDWTy.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
@@ -1610,28 +1524,28 @@ LAUScan LAUCodedApertureGLFilter::reverseDWCTransform(LAUScan scan)
                 }
                 prgrmReverseDWTy.release();
             }
-            fboXYZWRGBAb->release();
+            fboDWTf->release();
         }
 
-        if (fboXYZWRGBAa->bind()) {
+        if (fboDWTAA->bind()) {
             if (prgrmReverseDWTx.bind()) {
                 if (vertexBuffer.bind()) {
                     if (indexBuffer.bind()) {
-                        // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                        glViewport(0, 0, fboXYZWRGBAa->width(), fboXYZWRGBAa->height());
-                        glScissor(0, 0, fboXYZWRGBAa->width(), fboXYZWRGBAa->height());
+                        // SET THE VIEW PORT TO FILL THE RECONSTRUCTION OF THE AA BAND
+                        glViewport(0, 0, fboDWTAA->width(), fboDWTAA->height());
 
                         // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
                         glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAb->texture());
-                        prgrmReverseDWTx.setUniformValue("qt_texture", 0);
+                        glBindTexture(GL_TEXTURE_2D, fboDWTe->texture());
+                        prgrmReverseDWTx.setUniformValue("qt_textureA", 0);
 
-                        // SET THE COEFFICIENTS TO THE LOW-PASS DECOMPOSITION SYMMLET 8 FILTER
+                        glActiveTexture(GL_TEXTURE1);
+                        glBindTexture(GL_TEXTURE_2D, fboDWTf->texture());
+                        prgrmReverseDWTx.setUniformValue("qt_textureB", 1);
+
+                        // SET THE COEFFICIENTS TO THE HIGH AND LOW RECONSTRUCTION SYMMLET 8 FILTERS
                         prgrmReverseDWTx.setUniformValueArray("coefficientsA", LoR, 16, 1);
                         prgrmReverseDWTx.setUniformValueArray("coefficientsB", HiR, 16, 1);
-
-                        // SET THE SCALE AND OFFSET VALUES TO MAP INPUT PIXELS TO OUTPUT PIXELS
-                        prgrmReverseDWTx.setUniformValue("offset", fboXYZWRGBAa->width() / 2);
 
                         // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
                         glVertexAttribPointer(prgrmReverseDWTx.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
@@ -1646,28 +1560,34 @@ LAUScan LAUCodedApertureGLFilter::reverseDWCTransform(LAUScan scan)
                 }
                 prgrmReverseDWTx.release();
             }
-            fboXYZWRGBAa->release();
+            fboDWTAA->release();
         }
 
-        if (fboXYZWRGBAb->bind()) {
+        // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
+        // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
+        if (fboDWTc->bind()) {
             if (prgrmReverseDWTy.bind()) {
                 if (vertexBuffer.bind()) {
                     if (indexBuffer.bind()) {
                         // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                        glViewport(0, 0, fboXYZWRGBAb->width(), fboXYZWRGBAb->height());
-                        glScissor(0, 0, fboXYZWRGBAb->width(), fboXYZWRGBAb->height());
+                        glViewport(0, 0, fboDWTc->width(), fboDWTc->height());
 
                         // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
                         glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAa->texture());
-                        prgrmReverseDWTy.setUniformValue("qt_texture", 0);
+                        glBindTexture(GL_TEXTURE_2D, fboDWTAA->texture());
+                        prgrmReverseDWTx.setUniformValue("qt_textureA", 0);
 
-                        // SET THE COEFFICIENTS TO THE LOW-PASS DECOMPOSITION SYMMLET 8 FILTER
+                        glActiveTexture(GL_TEXTURE1);
+                        csDataCube->bind();
+                        prgrmReverseDWTy.setUniformValue("qt_textureB", 1);
+
+                        // SET THE TOP-LEFT CORNERS INSIDE THE COMPRESSED DATA CUBE TEXTURE
+                        prgrmReverseDWTy.setUniformValue("qt_positionA", QPointF(dwtTopLeftCorners.at(4)));
+                        prgrmReverseDWTy.setUniformValue("qt_positionB", QPointF(dwtTopLeftCorners.at(5)));
+
+                        // SET THE COEFFICIENTS TO THE HIGH AND LOW RECONSTRUCTION SYMMLET 8 FILTERS
                         prgrmReverseDWTy.setUniformValueArray("coefficientsA", LoR, 16, 1);
                         prgrmReverseDWTy.setUniformValueArray("coefficientsB", HiR, 16, 1);
-
-                        // SET THE SCALE AND OFFSET VALUES TO MAP INPUT PIXELS TO OUTPUT PIXELS
-                        prgrmReverseDWTy.setUniformValue("offset", fboXYZWRGBAb->height() / 2);
 
                         // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
                         glVertexAttribPointer(prgrmReverseDWTy.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
@@ -1682,17 +1602,208 @@ LAUScan LAUCodedApertureGLFilter::reverseDWCTransform(LAUScan scan)
                 }
                 prgrmReverseDWTy.release();
             }
-            fboXYZWRGBAb->release();
+            fboDWTc->release();
+        }
+
+        if (fboDWTd->bind()) {
+            if (prgrmReverseDWTy.bind()) {
+                if (vertexBuffer.bind()) {
+                    if (indexBuffer.bind()) {
+                        // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
+                        glViewport(0, 0, fboDWTd->width(), fboDWTd->height());
+
+                        // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
+                        glActiveTexture(GL_TEXTURE0);
+                        csDataCube->bind();
+                        prgrmReverseDWTy.setUniformValue("qt_textureA", 0);
+                        prgrmReverseDWTy.setUniformValue("qt_textureB", 0);
+
+                        // SET THE TOP-LEFT CORNERS INSIDE THE COMPRESSED DATA CUBE TEXTURE
+                        prgrmReverseDWTy.setUniformValue("qt_positionA", QPointF(dwtTopLeftCorners.at(6)));
+                        prgrmReverseDWTy.setUniformValue("qt_positionB", QPointF(dwtTopLeftCorners.at(7)));
+
+                        // SET THE COEFFICIENTS TO THE HIGH AND LOW RECONSTRUCTION SYMMLET 8 FILTERS
+                        prgrmReverseDWTy.setUniformValueArray("coefficientsA", LoR, 16, 1);
+                        prgrmReverseDWTy.setUniformValueArray("coefficientsB", HiR, 16, 1);
+
+                        // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
+                        glVertexAttribPointer(prgrmReverseDWTy.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+                        prgrmReverseDWTy.enableAttributeArray("qt_vertex");
+
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+                        // RELEASE THE FRAME BUFFER OBJECT AND ITS ASSOCIATED GLSL PROGRAMS
+                        indexBuffer.release();
+                    }
+                    vertexBuffer.release();
+                }
+                prgrmReverseDWTy.release();
+            }
+            fboDWTd->release();
+        }
+
+        if (fboDWTA->bind()) {
+            if (prgrmReverseDWTx.bind()) {
+                if (vertexBuffer.bind()) {
+                    if (indexBuffer.bind()) {
+                        // SET THE VIEW PORT TO FILL THE RECONSTRUCTION OF THE AA BAND
+                        glViewport(0, 0, fboDWTA->width(), fboDWTA->height());
+
+                        // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_2D, fboDWTc->texture());
+                        prgrmReverseDWTx.setUniformValue("qt_textureA", 0);
+
+                        glActiveTexture(GL_TEXTURE1);
+                        glBindTexture(GL_TEXTURE_2D, fboDWTd->texture());
+                        prgrmReverseDWTx.setUniformValue("qt_textureB", 1);
+
+                        // SET THE COEFFICIENTS TO THE HIGH AND LOW RECONSTRUCTION SYMMLET 8 FILTERS
+                        prgrmReverseDWTx.setUniformValueArray("coefficientsA", LoR, 16, 1);
+                        prgrmReverseDWTx.setUniformValueArray("coefficientsB", HiR, 16, 1);
+
+                        // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
+                        glVertexAttribPointer(prgrmReverseDWTx.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+                        prgrmReverseDWTx.enableAttributeArray("qt_vertex");
+
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+                        // RELEASE THE FRAME BUFFER OBJECT AND ITS ASSOCIATED GLSL PROGRAMS
+                        indexBuffer.release();
+                    }
+                    vertexBuffer.release();
+                }
+                prgrmReverseDWTx.release();
+            }
+            fboDWTA->release();
+        }
+
+        // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
+        // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
+        if (fboDWTa->bind()) {
+            if (prgrmReverseDWTy.bind()) {
+                if (vertexBuffer.bind()) {
+                    if (indexBuffer.bind()) {
+                        // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
+                        glViewport(0, 0, fboDWTa->width(), fboDWTa->height());
+
+                        // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_2D, fboDWTA->texture());
+                        prgrmReverseDWTx.setUniformValue("qt_textureA", 0);
+
+                        glActiveTexture(GL_TEXTURE1);
+                        csDataCube->bind();
+                        prgrmReverseDWTy.setUniformValue("qt_textureB", 1);
+
+                        // SET THE TOP-LEFT CORNERS INSIDE THE COMPRESSED DATA CUBE TEXTURE
+                        prgrmReverseDWTy.setUniformValue("qt_positionA", QPointF(dwtTopLeftCorners.at(8)));
+                        prgrmReverseDWTy.setUniformValue("qt_positionB", QPointF(dwtTopLeftCorners.at(9)));
+
+                        // SET THE COEFFICIENTS TO THE HIGH AND LOW RECONSTRUCTION SYMMLET 8 FILTERS
+                        prgrmReverseDWTy.setUniformValueArray("coefficientsA", LoR, 16, 1);
+                        prgrmReverseDWTy.setUniformValueArray("coefficientsB", HiR, 16, 1);
+
+                        // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
+                        glVertexAttribPointer(prgrmReverseDWTy.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+                        prgrmReverseDWTy.enableAttributeArray("qt_vertex");
+
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+                        // RELEASE THE FRAME BUFFER OBJECT AND ITS ASSOCIATED GLSL PROGRAMS
+                        indexBuffer.release();
+                    }
+                    vertexBuffer.release();
+                }
+                prgrmReverseDWTy.release();
+            }
+            fboDWTa->release();
+        }
+
+        if (fboDWTb->bind()) {
+            if (prgrmReverseDWTy.bind()) {
+                if (vertexBuffer.bind()) {
+                    if (indexBuffer.bind()) {
+                        // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
+                        glViewport(0, 0, fboDWTb->width(), fboDWTb->height());
+
+                        // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
+                        glActiveTexture(GL_TEXTURE0);
+                        csDataCube->bind();
+                        prgrmReverseDWTy.setUniformValue("qt_textureA", 0);
+                        prgrmReverseDWTy.setUniformValue("qt_textureB", 0);
+
+                        // SET THE TOP-LEFT CORNERS INSIDE THE COMPRESSED DATA CUBE TEXTURE
+                        prgrmReverseDWTy.setUniformValue("qt_positionA", QPointF(dwtTopLeftCorners.at(10)));
+                        prgrmReverseDWTy.setUniformValue("qt_positionB", QPointF(dwtTopLeftCorners.at(11)));
+
+                        // SET THE COEFFICIENTS TO THE HIGH AND LOW RECONSTRUCTION SYMMLET 8 FILTERS
+                        prgrmReverseDWTy.setUniformValueArray("coefficientsA", LoR, 16, 1);
+                        prgrmReverseDWTy.setUniformValueArray("coefficientsB", HiR, 16, 1);
+
+                        // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
+                        glVertexAttribPointer(prgrmReverseDWTy.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+                        prgrmReverseDWTy.enableAttributeArray("qt_vertex");
+
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+                        // RELEASE THE FRAME BUFFER OBJECT AND ITS ASSOCIATED GLSL PROGRAMS
+                        indexBuffer.release();
+                    }
+                    vertexBuffer.release();
+                }
+                prgrmReverseDWTy.release();
+            }
+            fboDWTb->release();
+        }
+
+        if (fboDataCube->bind()) {
+            if (prgrmReverseDWTx.bind()) {
+                if (vertexBuffer.bind()) {
+                    if (indexBuffer.bind()) {
+                        // SET THE VIEW PORT TO FILL THE RECONSTRUCTION OF THE AA BAND
+                        glViewport(0, 0, fboDataCube->width(), fboDataCube->height());
+
+                        // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_2D, fboDWTa->texture());
+                        prgrmReverseDWTx.setUniformValue("qt_textureA", 0);
+
+                        glActiveTexture(GL_TEXTURE1);
+                        glBindTexture(GL_TEXTURE_2D, fboDWTb->texture());
+                        prgrmReverseDWTx.setUniformValue("qt_textureB", 1);
+
+                        // SET THE COEFFICIENTS TO THE HIGH AND LOW RECONSTRUCTION SYMMLET 8 FILTERS
+                        prgrmReverseDWTx.setUniformValueArray("coefficientsA", LoR, 16, 1);
+                        prgrmReverseDWTx.setUniformValueArray("coefficientsB", HiR, 16, 1);
+
+                        // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
+                        glVertexAttribPointer(prgrmReverseDWTx.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+                        prgrmReverseDWTx.enableAttributeArray("qt_vertex");
+
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+                        // RELEASE THE FRAME BUFFER OBJECT AND ITS ASSOCIATED GLSL PROGRAMS
+                        indexBuffer.release();
+                    }
+                    vertexBuffer.release();
+                }
+                prgrmReverseDWTx.release();
+            }
+            fboDataCube->release();
         }
 
         // DOWNLOAD THE GPU RESULT BACK TO THE CPU
-        glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAb->texture());
-        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
+        result = LAUScan(fboDataCube->width() / 2, fboDataCube->height(), ColorXYZWRGBA);
+        glBindTexture(GL_TEXTURE_2D, fboDataCube->texture());
+        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)result.pointer());
+
+        // DOWNLOAD THE GPU RESULT BACK TO THE CPU
         doneCurrent();
     }
 
     // RETURN THE UPDATED SCAN
-    return (scan);
+    return (result);
 }
 
 /****************************************************************************/
@@ -1711,12 +1822,12 @@ LAUScan LAUCodedApertureGLFilter::forwardCodedAperture(LAUScan scan)
 
             // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH THE SHADER
             // AND VBOS FOR BUILDING THE SKEWED CODED APERATURE MASK FBO
-            if (fboXYZWRGBAa && fboXYZWRGBAa->bind()) {
+            if (fboDataCube && fboDataCube->bind()) {
                 if (prgrmForwardCodedAperture.bind()) {
                     if (vertexBuffer.bind()) {
                         if (indexBuffer.bind()) {
                             // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                            glViewport(0, 0, fboXYZWRGBAa->width(), fboXYZWRGBAa->height());
+                            glViewport(0, 0, fboDataCube->width(), fboDataCube->height());
                             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                             // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT FOR THE INPUT IMAGE
@@ -1742,12 +1853,12 @@ LAUScan LAUCodedApertureGLFilter::forwardCodedAperture(LAUScan scan)
                     }
                     prgrmForwardCodedAperture.release();
                 }
-                fboXYZWRGBAa->release();
+                fboDataCube->release();
             }
 
             // CREATE A NEW MONOCHROME SCAN
             result = LAUScan(scan.width(), scan.height(), ColorXYZWRGBA);
-            glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAa->texture());
+            glBindTexture(GL_TEXTURE_2D, fboDataCube->texture());
             glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)result.pointer());
         }
     }
@@ -1844,15 +1955,13 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     //            }
     //        }
 
-    ideal.save(QString((save_dir) + QString("vectorI.tif")));
-
-
     // THE INCOMING SCAN IS THE COMPLETE, IDEAL, PERFECT 3D DATA CUBE
     // WE WANT TO GENERATE A CODED APERTURE ENCODING AND THEN RECONSTRUCT THIS SCAN
     // CALCULATING THE MEAN SQUARED ERROR STEP BY STEP
 
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
     ideal = forwardDWCTransform(ideal);
+    ideal = reverseDWCTransform(ideal);
     return (ideal);
 
     // INITIALIZE VARIABLES FOR MANAGING GPSR ALGORITHM
@@ -2180,12 +2289,12 @@ LAUScan LAUCodedApertureGLFilter::computeVectorU(LAUScan scan)
 
         // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
         // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
-        if (fboXYZWRGBAa->bind()) {
+        if (fboDataCube->bind()) {
             if (prgrmU.bind()) {
                 if (vertexBuffer.bind()) {
                     if (indexBuffer.bind()) {
                         // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                        glViewport(0, 0, fboXYZWRGBAa->width(), fboXYZWRGBAa->height());
+                        glViewport(0, 0, fboDataCube->width(), fboDataCube->height());
                         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                         // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
@@ -2206,11 +2315,11 @@ LAUScan LAUCodedApertureGLFilter::computeVectorU(LAUScan scan)
                 }
                 prgrmU.release();
             }
-            fboXYZWRGBAa->release();
+            fboDataCube->release();
         }
 
         // DOWNLOAD THE GPU RESULT BACK TO THE CPU
-        glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAa->texture());
+        glBindTexture(GL_TEXTURE_2D, fboDataCube->texture());
         glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
         doneCurrent();
     }
@@ -2234,12 +2343,12 @@ LAUScan LAUCodedApertureGLFilter::computeVectorV(LAUScan scan)
 
         // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
         // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
-        if (fboXYZWRGBAb->bind()) {
+        if (fboCSDataCube->bind()) {
             if (prgrmV.bind()) {
                 if (vertexBuffer.bind()) {
                     if (indexBuffer.bind()) {
                         // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                        glViewport(0, 0, fboXYZWRGBAb->width(), fboXYZWRGBAb->height());
+                        glViewport(0, 0, fboCSDataCube->width(), fboCSDataCube->height());
                         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                         // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
@@ -2260,11 +2369,11 @@ LAUScan LAUCodedApertureGLFilter::computeVectorV(LAUScan scan)
                 }
                 prgrmV.release();
             }
-            fboXYZWRGBAb->release();
+            fboCSDataCube->release();
         }
 
         // DOWNLOAD THE GPU RESULT BACK TO THE CPU
-        glBindTexture(GL_TEXTURE_2D, fboXYZWRGBAb->texture());
+        glBindTexture(GL_TEXTURE_2D, fboCSDataCube->texture());
         glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
         doneCurrent();
     }

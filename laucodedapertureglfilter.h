@@ -191,11 +191,11 @@ private:
     QOpenGLBuffer vertexBuffer, indexBuffer;
     QOpenGLVertexArrayObject vertexArrayObject;
 
-    QOpenGLTexture *dataCube, *spectralMeasurement;
+    QOpenGLTexture *dataCube, *csDataCube, *spectralMeasurement;
     QOpenGLTexture *txtScalarA, *txtScalarB, *txtCodeAper;
 
     QOpenGLFramebufferObject *fboScalarA, *fboScalarB;
-    QOpenGLFramebufferObject *fboXYZWRGBAa, *fboXYZWRGBAb;
+    QOpenGLFramebufferObject *fboDataCube, *fboCSDataCube;
     QOpenGLFramebufferObject *fboCodeAperLeft, *fboCodeAperRight, *fboSpectralModel;
 
     QOpenGLFramebufferObject *fboDWTa, *fboDWTb, *fboDWTc, *fboDWTd, *fboDWTe, *fboDWTf;
