@@ -33,6 +33,7 @@
 #ifndef LAUCODEDAPERTUREGLFILTER_H
 #define LAUCODEDAPERTUREGLFILTER_H
 
+#include <QtCore>
 #include <QScreen>
 #include <QOpenGLWidget>
 #include <QOpenGLBuffer>
@@ -197,11 +198,19 @@ private:
     QOpenGLFramebufferObject *fboXYZWRGBAa, *fboXYZWRGBAb;
     QOpenGLFramebufferObject *fboCodeAperLeft, *fboCodeAperRight, *fboSpectralModel;
 
+    QOpenGLFramebufferObject *fboDWTa, *fboDWTb, *fboDWTc, *fboDWTd, *fboDWTe, *fboDWTf;
+    QOpenGLFramebufferObject *fboDWTA,   *fboDWTB,   *fboDWTC,   *fboDWTD;
+    QOpenGLFramebufferObject *fboDWTAA,  *fboDWTAB,  *fboDWTAC,  *fboDWTAD;
+    QOpenGLFramebufferObject *fboDWTAAA, *fboDWTAAB, *fboDWTAAC, *fboDWTAAD;
+
     QOpenGLShaderProgram prgrmForwardDWTx, prgrmForwardDWTy;
     QOpenGLShaderProgram prgrmForwardDCT, prgrmReverseDCT;
     QOpenGLShaderProgram prgrmReverseDWTx, prgrmReverseDWTy;
     QOpenGLShaderProgram prgrmForwardCodedAperture, prgrmReverseCodedAperture;
     QOpenGLShaderProgram prgrmU, prgrmV, prgrmScalarMSE, prgrmScalarADD;
+
+    QList<QPoint> dwtBlockSizes;
+    QList<QPoint> dwtTopLeftCorners;
 
     static float LoD[16], HiD[16], LoR[16], HiR[16];
 
@@ -346,7 +355,7 @@ protected:
     {
         // GIVE THE USER THE CHANCE TO SAVE THE RESULTING SCAN TO DISK
         LAUScan result = widget->smoothedScan();
-        if (result.isValid()){
+        if (result.isValid()) {
             if (result.save(QString())) {
                 QDialog::accept();
             }
