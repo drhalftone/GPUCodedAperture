@@ -117,7 +117,7 @@ LAUScan LAUCodedApertureWidget::smoothedScan()
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
-LAUCodedApertureGLWidget::LAUCodedApertureGLWidget(unsigned int cols, unsigned int rows, QWidget *parent) : QOpenGLWidget(parent), channel(0), scan(LAUScan(cols, rows, ColorXYZWRGBA)), dataCube(NULL)
+LAUCodedApertureGLWidget::LAUCodedApertureGLWidget(unsigned int cols, unsigned int rows, QWidget *parent) : QOpenGLWidget(parent), channel(7), scan(LAUScan(cols, rows, ColorXYZWRGBA)), dataCube(NULL)
 {
     ;
 }
@@ -125,7 +125,7 @@ LAUCodedApertureGLWidget::LAUCodedApertureGLWidget(unsigned int cols, unsigned i
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
-LAUCodedApertureGLWidget::LAUCodedApertureGLWidget(LAUScan scn, QWidget *parent) : QOpenGLWidget(parent), channel(0), scan(scn), dataCube(NULL)
+LAUCodedApertureGLWidget::LAUCodedApertureGLWidget(LAUScan scn, QWidget *parent) : QOpenGLWidget(parent), channel(7), scan(scn), dataCube(NULL)
 {
     ;
 }

@@ -9,7 +9,7 @@ void main()
 {
     // GET THE FRAGMENT PIXEL COORDINATE
     ivec2 coord = ivec2(gl_FragCoord.xy);
-          coord.x = 2*coord.x + coord.x%2;
+          coord.x = 2*coord.x - coord.x%2;
 
     // ITERATE THROUGH EACH PIXEL IN THE WINDOW
     qt_fragColor = vec4(0.0, 0.0, 0.0, 0.0);
