@@ -437,19 +437,19 @@ void LAUCodedApertureGLFilter::initialize()
         initializeShaders();
 
         // INITIALIZE THE CODED APERTURE TEXTURE
-        QSettings settings;
-        QString directory = settings.value("LAUScan::lastUsedDirectory", QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).toString();
-        QStringList fileNames = QFileDialog::getOpenFileNames(0,QString("BMP files"), directory, QString("*.bmp") );
-        if(!fileNames.isEmpty() )
-        {
-            for (int i =0;i<fileNames.count();i++){
-                Masks<<QImage(fileNames.at(i));
-                QImage Mask = Masks.at(i);
-            }
+//        QSettings settings;
+//        QString directory = settings.value("LAUScan::lastUsedDirectory", QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).toString();
+//        QStringList fileNames = QFileDialog::getOpenFileNames(0,QString("BMP files"), directory, QString("*.bmp") );
+//        if(!fileNames.isEmpty() )
+//        {
+//            for (int i =0;i<fileNames.count();i++){
+//                Masks<<QImage(fileNames.at(i));
+//                QImage Mask = Masks.at(i);
+//            }
 
-        }
-        setCodedAperture(Masks);
-        //setCodedAperture(QImage(":/Images/Images/CASSIMask.bmp"));
+//        }
+//        setCodedAperture(Masks);
+        setCodedAperture(QImage(":/Images/Images/CASSIMask.bmp"));
 
         // RELEASE THIS CONTEXT AS THE CURRENT GL CONTEXT
         doneCurrent();
