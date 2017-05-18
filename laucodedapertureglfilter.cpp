@@ -117,7 +117,7 @@ LAUScan LAUCodedApertureWidget::smoothedScan()
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
-LAUCodedApertureGLWidget::LAUCodedApertureGLWidget(unsigned int cols, unsigned int rows, QWidget *parent) : QOpenGLWidget(parent), channel(7), scan(LAUScan(cols, rows, ColorXYZWRGBA)), dataCube(NULL)
+LAUCodedApertureGLWidget::LAUCodedApertureGLWidget(unsigned int cols, unsigned int rows, QWidget *parent) : QOpenGLWidget(parent), channel(0), scan(LAUScan(cols, rows, ColorXYZWRGBA)), dataCube(NULL)
 {
     ;
 }
@@ -125,7 +125,7 @@ LAUCodedApertureGLWidget::LAUCodedApertureGLWidget(unsigned int cols, unsigned i
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
-LAUCodedApertureGLWidget::LAUCodedApertureGLWidget(LAUScan scn, QWidget *parent) : QOpenGLWidget(parent), channel(7), scan(scn), dataCube(NULL)
+LAUCodedApertureGLWidget::LAUCodedApertureGLWidget(LAUScan scn, QWidget *parent) : QOpenGLWidget(parent), channel(0), scan(scn), dataCube(NULL)
 {
     ;
 }
@@ -412,11 +412,11 @@ LAUCodedApertureGLFilter::~LAUCodedApertureGLFilter()
         if (fboScalarB) {
             delete fboScalarB;
         }
-        if (fboDataCube) {
-            delete fboDataCube;
+        if (fboDataCubeA) {
+            delete fboDataCubeA;
         }
-        if (fboCSDataCube) {
-            delete fboCSDataCube;
+        if (fboDataCubeB) {
+            delete fboDataCubeB;
         }
         if (txtCodeAper) {
             delete txtCodeAper;
@@ -546,14 +546,6 @@ void LAUCodedApertureGLFilter::initializeShaders()
 {
     // CREATE GLSL PROGRAM FOR PROCESSING THE INCOMING VIDEO
     setlocale(LC_NUMERIC, "C");
-    prgrmForwardDWTx.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
-    prgrmForwardDWTx.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiForwardDWTx.frag");
-    prgrmForwardDWTx.link();
-
-    prgrmForwardDWTy.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
-    prgrmForwardDWTy.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiForwardDWTy.frag");
-    prgrmForwardDWTy.link();
-
     prgrmForwardDCT.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
     prgrmForwardDCT.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiForwardDCT.frag");
     prgrmForwardDCT.link();
@@ -561,6 +553,14 @@ void LAUCodedApertureGLFilter::initializeShaders()
     prgrmReverseDCT.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
     prgrmReverseDCT.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiReverseDCT.frag");
     prgrmReverseDCT.link();
+
+    prgrmForwardDWTx.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
+    prgrmForwardDWTx.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiForwardDWTx.frag");
+    prgrmForwardDWTx.link();
+
+    prgrmForwardDWTy.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
+    prgrmForwardDWTy.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiForwardDWTy.frag");
+    prgrmForwardDWTy.link();
 
     prgrmReverseDWTx.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
     prgrmReverseDWTx.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiReverseDWTx.frag");
@@ -636,11 +636,11 @@ void LAUCodedApertureGLFilter::initializeTextures()
     fboFormat.setInternalTextureFormat(GL_RGBA32F);
 
     // CREATE THE INTERMEDIATE FBOS FOR THE FORWARD AND INVERSE TRANSFORMS
-    fboDataCube = new QOpenGLFramebufferObject(2 * numCols, numRows, fboFormat);
-    fboDataCube->release();
+    fboDataCubeA = new QOpenGLFramebufferObject(2 * numCols, numRows, fboFormat);
+    fboDataCubeA->release();
 
-    fboCSDataCube = new QOpenGLFramebufferObject(2 * numCols, numRows, fboFormat);
-    fboCSDataCube->release();
+    fboDataCubeB = new QOpenGLFramebufferObject(2 * numCols, numRows, fboFormat);
+    fboDataCubeB->release();
 
     fboCodeAperLeft = new QOpenGLFramebufferObject(2 * numCols, numRows, fboFormat);
     fboCodeAperLeft->release();
@@ -743,8 +743,8 @@ void LAUCodedApertureGLFilter::initializeParameters()
     fboScalarA = NULL;
     fboScalarB = NULL;
     txtCodeAper = NULL;
-    fboDataCube = NULL;
-    fboCSDataCube = NULL;
+    fboDataCubeA = NULL;
+    fboDataCubeB = NULL;
     fboCodeAperLeft = NULL;
     fboCodeAperRight = NULL;
     fboSpectralModel = NULL;
@@ -764,6 +764,36 @@ LAUScan LAUCodedApertureGLFilter::forwardDWCTransform(LAUScan scan)
         // COPY FRAME BUFFER TEXTURE FROM GPU TO LOCAL CPU BUFFER
         dataCube->setData(QOpenGLTexture::RGBA, QOpenGLTexture::Float32, (const void *)scan.constPointer());
 
+        // BIND THE FRAME BUFFER OBJECT, SHADER, AND VBOS FOR CALCULATING THE DCT ACROSS CHANNELS
+        if (fboDataCubeA->bind()) {
+            if (prgrmForwardDCT.bind()) {
+                if (vertexBuffer.bind()) {
+                    if (indexBuffer.bind()) {
+                        // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
+                        glViewport(0, 0, fboDataCubeA->width(), fboDataCubeA->height());
+                        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+                        // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
+                        glActiveTexture(GL_TEXTURE0);
+                        dataCube->bind();
+                        prgrmForwardDCT.setUniformValue("qt_texture", 0);
+
+                        // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
+                        glVertexAttribPointer(prgrmForwardDCT.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+                        prgrmForwardDCT.enableAttributeArray("qt_vertex");
+
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+                        // RELEASE THE FRAME BUFFER OBJECT AND ITS ASSOCIATED GLSL PROGRAMS
+                        indexBuffer.release();
+                    }
+                    vertexBuffer.release();
+                }
+                prgrmForwardDCT.release();
+            }
+            fboDataCubeA->release();
+        }
+
         // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
         // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
         if (fboDWTa->bind()) {
@@ -776,7 +806,7 @@ LAUScan LAUCodedApertureGLFilter::forwardDWCTransform(LAUScan scan)
 
                         // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
                         glActiveTexture(GL_TEXTURE0);
-                        dataCube->bind();
+                        glBindTexture(GL_TEXTURE_2D, fboDataCubeA->texture());
                         prgrmForwardDWTx.setUniformValue("qt_texture", 0);
 
                         // SET THE COEFFICIENTS TO THE LOW-PASS DECOMPOSITION SYMMLET 8 FILTER
@@ -884,11 +914,10 @@ LAUScan LAUCodedApertureGLFilter::forwardDWCTransform(LAUScan scan)
                     if (indexBuffer.bind()) {
                         // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
                         glViewport(0, 0, fboDWTb->width(), fboDWTb->height());
-                        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                         // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
                         glActiveTexture(GL_TEXTURE0);
-                        dataCube->bind();
+                        glBindTexture(GL_TEXTURE_2D, fboDataCubeA->texture());
                         prgrmForwardDWTx.setUniformValue("qt_texture", 0);
 
                         // SET THE COEFFICIENTS TO THE LOW-PASS DECOMPOSITION SYMMLET 8 FILTER
@@ -1757,12 +1786,12 @@ LAUScan LAUCodedApertureGLFilter::reverseDWCTransform(LAUScan scan)
             fboDWTb->release();
         }
 
-        if (fboDataCube->bind()) {
+        if (fboDataCubeA->bind()) {
             if (prgrmReverseDWTx.bind()) {
                 if (vertexBuffer.bind()) {
                     if (indexBuffer.bind()) {
                         // SET THE VIEW PORT TO FILL THE RECONSTRUCTION OF THE AA BAND
-                        glViewport(0, 0, fboDataCube->width(), fboDataCube->height());
+                        glViewport(0, 0, fboDataCubeA->width(), fboDataCubeA->height());
 
                         // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
                         glActiveTexture(GL_TEXTURE0);
@@ -1790,12 +1819,41 @@ LAUScan LAUCodedApertureGLFilter::reverseDWCTransform(LAUScan scan)
                 }
                 prgrmReverseDWTx.release();
             }
-            fboDataCube->release();
+            fboDataCubeA->release();
+        }
+
+        // BIND THE FRAME BUFFER OBJECT, SHADER, AND VBOS FOR CALCULATING THE DCT ACROSS CHANNELS
+        if (fboDataCubeB->bind()) {
+            if (prgrmReverseDCT.bind()) {
+                if (vertexBuffer.bind()) {
+                    if (indexBuffer.bind()) {
+                        // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
+                        glViewport(0, 0, fboDataCubeB->width(), fboDataCubeB->height());
+
+                        // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_2D, fboDataCubeA->texture());
+                        prgrmReverseDCT.setUniformValue("qt_texture", 0);
+
+                        // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
+                        glVertexAttribPointer(prgrmReverseDCT.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+                        prgrmReverseDCT.enableAttributeArray("qt_vertex");
+
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+                        // RELEASE THE FRAME BUFFER OBJECT AND ITS ASSOCIATED GLSL PROGRAMS
+                        indexBuffer.release();
+                    }
+                    vertexBuffer.release();
+                }
+                prgrmReverseDCT.release();
+            }
+            fboDataCubeB->release();
         }
 
         // DOWNLOAD THE GPU RESULT BACK TO THE CPU
-        result = LAUScan(fboDataCube->width() / 2, fboDataCube->height(), ColorXYZWRGBA);
-        glBindTexture(GL_TEXTURE_2D, fboDataCube->texture());
+        result = LAUScan(fboDataCubeB->width() / 2, fboDataCubeB->height(), ColorXYZWRGBA);
+        glBindTexture(GL_TEXTURE_2D, fboDataCubeB->texture());
         glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)result.pointer());
 
         // DOWNLOAD THE GPU RESULT BACK TO THE CPU
@@ -1822,12 +1880,12 @@ LAUScan LAUCodedApertureGLFilter::forwardCodedAperture(LAUScan scan)
 
             // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH THE SHADER
             // AND VBOS FOR BUILDING THE SKEWED CODED APERATURE MASK FBO
-            if (fboDataCube && fboDataCube->bind()) {
+            if (fboDataCubeA && fboDataCubeA->bind()) {
                 if (prgrmForwardCodedAperture.bind()) {
                     if (vertexBuffer.bind()) {
                         if (indexBuffer.bind()) {
                             // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                            glViewport(0, 0, fboDataCube->width(), fboDataCube->height());
+                            glViewport(0, 0, fboDataCubeA->width(), fboDataCubeA->height());
                             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                             // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT FOR THE INPUT IMAGE
@@ -1853,12 +1911,12 @@ LAUScan LAUCodedApertureGLFilter::forwardCodedAperture(LAUScan scan)
                     }
                     prgrmForwardCodedAperture.release();
                 }
-                fboDataCube->release();
+                fboDataCubeA->release();
             }
 
             // CREATE A NEW MONOCHROME SCAN
             result = LAUScan(scan.width(), scan.height(), ColorXYZWRGBA);
-            glBindTexture(GL_TEXTURE_2D, fboDataCube->texture());
+            glBindTexture(GL_TEXTURE_2D, fboDataCubeA->texture());
             glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)result.pointer());
         }
     }
@@ -1930,30 +1988,30 @@ LAUScan LAUCodedApertureGLFilter::reverseCodedAperture(LAUScan scan)
 LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
 {
     LAUScan result;
-    //        for (unsigned int row = 0; row < ideal.height(); row++) {
-    //            float *buffer = (float *)ideal.constScanLine(row);
-    //            for (unsigned int col = 0; col < ideal.width(); col++) {
-    //                buffer[8 * col + 0] = 0.0f;
-    //                buffer[8 * col + 1] = 0.0f;
-    //                buffer[8 * col + 2] = 0.0f;
-    //                buffer[8 * col + 3] = 0.0f;
-    //                buffer[8 * col + 4] = 0.0f;
-    //                buffer[8 * col + 5] = 0.0f;
-    //                buffer[8 * col + 6] = 0.0f;
-    //                buffer[8 * col + 7] = 0.0f;
-    //if (row == ideal.height()/2 && col == ideal.width()/2){
-    //              if (col < 64 || col > ideal.width() - 64){
-    //                    buffer[8 * col + 0] = 0.0f;
-    //                    buffer[8 * col + 1] = 0.0f;
-    //                    buffer[8 * col + 2] = 0.0f;
-    //                    buffer[8 * col + 3] = 0.0f;
-    //                    buffer[8 * col + 4] = 0.0f;
-    //                    buffer[8 * col + 5] = 0.0f;
-    //                    buffer[8 * col + 6] = 0.0f;
-    //                    buffer[8 * col + 7] = 0.0f;
-    //                }
-    //            }
+    //for (unsigned int row = 0; row < ideal.height(); row++) {
+    //    float *buffer = (float *)ideal.constScanLine(row);
+    //    for (unsigned int col = 0; col < ideal.width(); col++) {
+    //        buffer[8 * col + 0] = 0.0f;
+    //        buffer[8 * col + 1] = 0.0f;
+    //        buffer[8 * col + 2] = 0.0f;
+    //        buffer[8 * col + 3] = 0.0f;
+    //        buffer[8 * col + 4] = 0.0f;
+    //        buffer[8 * col + 5] = 0.0f;
+    //        buffer[8 * col + 6] = 0.0f;
+    //        buffer[8 * col + 7] = 0.0f;
+    //        if (col == 100) {
+    //            buffer[8 * col + 0] = 1.0f;
+    //            buffer[8 * col + 1] = 1.0f;
+    //            buffer[8 * col + 2] = 1.0f;
+    //            buffer[8 * col + 3] = 1.0f;
+    //            buffer[8 * col + 4] = 1.0f;
+    //            buffer[8 * col + 5] = 1.0f;
+    //            buffer[8 * col + 6] = 1.0f;
+    //            buffer[8 * col + 7] = 1.0f;
     //        }
+    //    }
+    //}
+    //ideal.save(QString((save_dir) + QString("vectorI.tif")));
 
     // THE INCOMING SCAN IS THE COMPLETE, IDEAL, PERFECT 3D DATA CUBE
     // WE WANT TO GENERATE A CODED APERTURE ENCODING AND THEN RECONSTRUCT THIS SCAN
@@ -2289,12 +2347,12 @@ LAUScan LAUCodedApertureGLFilter::computeVectorU(LAUScan scan)
 
         // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
         // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
-        if (fboDataCube->bind()) {
+        if (fboDataCubeA->bind()) {
             if (prgrmU.bind()) {
                 if (vertexBuffer.bind()) {
                     if (indexBuffer.bind()) {
                         // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                        glViewport(0, 0, fboDataCube->width(), fboDataCube->height());
+                        glViewport(0, 0, fboDataCubeA->width(), fboDataCubeA->height());
                         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                         // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
@@ -2315,11 +2373,11 @@ LAUScan LAUCodedApertureGLFilter::computeVectorU(LAUScan scan)
                 }
                 prgrmU.release();
             }
-            fboDataCube->release();
+            fboDataCubeA->release();
         }
 
         // DOWNLOAD THE GPU RESULT BACK TO THE CPU
-        glBindTexture(GL_TEXTURE_2D, fboDataCube->texture());
+        glBindTexture(GL_TEXTURE_2D, fboDataCubeA->texture());
         glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
         doneCurrent();
     }
@@ -2343,12 +2401,12 @@ LAUScan LAUCodedApertureGLFilter::computeVectorV(LAUScan scan)
 
         // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
         // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
-        if (fboCSDataCube->bind()) {
+        if (fboDataCubeB->bind()) {
             if (prgrmV.bind()) {
                 if (vertexBuffer.bind()) {
                     if (indexBuffer.bind()) {
                         // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                        glViewport(0, 0, fboCSDataCube->width(), fboCSDataCube->height());
+                        glViewport(0, 0, fboDataCubeB->width(), fboDataCubeB->height());
                         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                         // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
@@ -2369,11 +2427,11 @@ LAUScan LAUCodedApertureGLFilter::computeVectorV(LAUScan scan)
                 }
                 prgrmV.release();
             }
-            fboCSDataCube->release();
+            fboDataCubeB->release();
         }
 
         // DOWNLOAD THE GPU RESULT BACK TO THE CPU
-        glBindTexture(GL_TEXTURE_2D, fboCSDataCube->texture());
+        glBindTexture(GL_TEXTURE_2D, fboDataCubeB->texture());
         glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
         doneCurrent();
     }

@@ -195,7 +195,7 @@ private:
     QOpenGLTexture *txtScalarA, *txtScalarB, *txtCodeAper;
 
     QOpenGLFramebufferObject *fboScalarA, *fboScalarB;
-    QOpenGLFramebufferObject *fboDataCube, *fboCSDataCube;
+    QOpenGLFramebufferObject *fboDataCubeA, *fboDataCubeB;
     QOpenGLFramebufferObject *fboCodeAperLeft, *fboCodeAperRight, *fboSpectralModel;
 
     QOpenGLFramebufferObject *fboDWTa, *fboDWTb, *fboDWTc, *fboDWTd, *fboDWTe, *fboDWTf;
