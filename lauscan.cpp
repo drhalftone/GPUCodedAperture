@@ -235,6 +235,8 @@ LAUScan &LAUScan::operator + (const LAUScan &other)
 /****************************************************************************/
 bool LAUScan::save(QString filename)
 {
+    return (false);
+
     QSettings settings;
     lastUsedDirectory = settings.value(QString("LAUScan::lastUsedDirectory"), QString()).toString();
 
@@ -761,7 +763,7 @@ int LAUScan::inspectImage()
     dialog.setWindowTitle(filename());
     return (dialog.exec());
 #else
-    return(0);
+    return (0);
 #endif
 }
 
@@ -811,7 +813,7 @@ bool LAUScan::approveImage(bool *doNotShowAgainCheckBoxEnabled, QWidget *parent)
         return (dialog.exec() == QDialog::Accepted);
     }
 #else
-    return(false);
+    return (false);
 #endif
 }
 

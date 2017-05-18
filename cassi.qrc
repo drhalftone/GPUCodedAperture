@@ -28,5 +28,11 @@
         <file>Shaders/cassiBuildCodedApertureRight.frag</file>
         <file>Shaders/cassiDisplayXYZWRGBA.frag</file>
         <file>Shaders/cassiDisplayXYZWRGBA.vert</file>
+        <file>Shaders/cassiScalarMSE.frag</file>
+        <file>Shaders/cassiScalarMSE.vert</file>
+        <file>Shaders/cassiScalarSUM.frag</file>
+        <file>Shaders/cassiScalarSUM.vert</file>
+        <file>Shaders/cassiAccumulativeSum.frag</file>
+        <file>Shaders/cassiAccumulativeSum.vert</file>
     </qresource>
 </RCC>

@@ -194,7 +194,7 @@ private:
     QOpenGLTexture *dataCube, *csDataCube, *spectralMeasurement;
     QOpenGLTexture *txtScalarA, *txtScalarB, *txtCodeAper;
 
-    QOpenGLFramebufferObject *fboScalarA, *fboScalarB;
+    QOpenGLFramebufferObject *fboScalarA, *fboScalarB, *fboScalarC;
     QOpenGLFramebufferObject *fboDataCubeA, *fboDataCubeB;
     QOpenGLFramebufferObject *fboCodeAperLeft, *fboCodeAperRight, *fboSpectralModel;
 
@@ -205,7 +205,7 @@ private:
     QOpenGLShaderProgram prgrmForwardDCT, prgrmReverseDCT;
     QOpenGLShaderProgram prgrmReverseDWTx, prgrmReverseDWTy;
     QOpenGLShaderProgram prgrmForwardCodedAperture, prgrmReverseCodedAperture;
-    QOpenGLShaderProgram prgrmU, prgrmV, prgrmScalarMSE, prgrmScalarADD;
+    QOpenGLShaderProgram prgrmU, prgrmV, prgrmScalarMSE, prgrmAccumSum;
 
     QList<QSize> dwtBlockSizes;
     QList<QPoint> dwtTopLeftCorners;
@@ -279,6 +279,15 @@ public:
     }
 
 protected:
+    void keyPressEvent(QKeyEvent *event)
+    {
+        if (event->key() == Qt::Key_Up) {
+            onIncrementChannel();
+        } else if (event->key() == Qt::Key_Down) {
+            onDecrementChannel();
+        }
+        QOpenGLWidget::keyPressEvent(event);
+    }
     void wheelEvent(QWheelEvent *event);
     void initializeGL();
     void resizeGL(int w, int h);
@@ -286,6 +295,16 @@ protected:
 
 public slots:
     void onUpdateScan(LAUScan scn);
+    void onIncrementChannel()
+    {
+        channel++;
+        update();
+    }
+    void onDecrementChannel()
+    {
+        channel--;
+        update();
+    }
 
 private:
     unsigned int localHeight, localWidth, channel;
@@ -309,6 +328,7 @@ public:
     ~LAUCodedApertureWidget();
 
     LAUScan smoothedScan();
+    static bool inspectScan(LAUScan scan);
 
 public slots:
     void onSetCodedAperture();
