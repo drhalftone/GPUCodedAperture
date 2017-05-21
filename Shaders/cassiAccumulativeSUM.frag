@@ -15,11 +15,8 @@ void main()
     qt_fragColor = vec4(0.0, 0.0, 0.0, 0.0);
     for (int row = 0; row < block.y; row++){
         for (int col = 0; col < block.x; col++){
-            // CALCULATE THE DIFFERENCE BETWEEN PIXELS
-            vec4 pixel = texelFetch(qt_texture, coord + ivec2(col, row), 0);
-
-            // ACCUMULATE THE SUM OF THE SQUARE OF THE DIFFERENCE VECTOR
-            qt_fragColor += pixel;
+            // ACCUMULATE THE MAX OF THE INCOMING PIXELS
+            qt_fragColor += texelFetch(qt_texture, coord + ivec2(col, row), 0);
         }
     }
 

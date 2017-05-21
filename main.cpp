@@ -57,10 +57,11 @@ int main(int argc, char *argv[])
     qRegisterMetaType<LAUScan>("LAUScan");
 
     LAUScan scan = LAUScan(QString());
-    if (scan.isValid()){
+    if (scan.isValid()) {
         LAUCodedApertureDialog dialog(scan);
         return (dialog.exec());
     } else {
-        return(0);
+        return (0);
     }
 }
+

@@ -3,7 +3,6 @@
         <file>Images/CASSIMask.bmp</file>
     </qresource>
     <qresource prefix="/Shaders">
-        <file>Shaders/cassiForwardCodedAperture.frag</file>
         <file>Shaders/cassiForwardDCT.frag</file>
         <file>Shaders/cassiForwardDWTx.frag</file>
         <file>Shaders/cassiForwardDWTy.frag</file>
@@ -20,19 +19,22 @@
         <file>Shaders/filterCassiMedian.vert</file>
         <file>Shaders/filterCassiShiftPSF.frag</file>
         <file>Shaders/filterCassiShiftPSF.vert</file>
-        <file>Shaders/cassiReverseCodedAperture.frag</file>
         <file>Shaders/cassiReverseDCT.frag</file>
         <file>Shaders/cassiReverseDWTx.frag</file>
         <file>Shaders/cassiReverseDWTy.frag</file>
-        <file>Shaders/cassiBuildCodedApertureLeft.frag</file>
-        <file>Shaders/cassiBuildCodedApertureRight.frag</file>
         <file>Shaders/cassiDisplayXYZWRGBA.frag</file>
         <file>Shaders/cassiDisplayXYZWRGBA.vert</file>
-        <file>Shaders/cassiScalarMSE.frag</file>
-        <file>Shaders/cassiScalarMSE.vert</file>
-        <file>Shaders/cassiScalarSUM.frag</file>
-        <file>Shaders/cassiScalarSUM.vert</file>
-        <file>Shaders/cassiAccumulativeSum.frag</file>
-        <file>Shaders/cassiAccumulativeSum.vert</file>
+        <file>Shaders/cassiAccumulativeMAX.frag</file>
+        <file>Shaders/cassiAccumulativeMAX.vert</file>
+        <file>Shaders/cassiAccumulativeMSE.frag</file>
+        <file>Shaders/cassiAccumulativeMSE.vert</file>
+        <file>Shaders/cassiAccumulativeSUM.frag</file>
+        <file>Shaders/cassiAccumulativeSUM.vert</file>
+        <file>Shaders/cassiBuildCATLeft.frag</file>
+        <file>Shaders/cassiBuildCATRight.frag</file>
+        <file>Shaders/cassiForwardCAT.frag</file>
+        <file>Shaders/cassiReverseCAT.frag</file>
+        <file>Shaders/cassiAccumulativeMIN.frag</file>
+        <file>Shaders/cassiAccumulativeMIN.vert</file>
     </qresource>
 </RCC>

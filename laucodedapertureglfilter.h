@@ -205,7 +205,7 @@ private:
     QOpenGLShaderProgram prgrmForwardDCT, prgrmReverseDCT;
     QOpenGLShaderProgram prgrmReverseDWTx, prgrmReverseDWTy;
     QOpenGLShaderProgram prgrmForwardCodedAperture, prgrmReverseCodedAperture;
-    QOpenGLShaderProgram prgrmU, prgrmV, prgrmScalarMSE, prgrmAccumSum;
+    QOpenGLShaderProgram prgrmU, prgrmV, prgrmAccumMSE, prgrmAccumSUM, prgrmAccumMAX, prgrmAccumMIN;
 
     QList<QSize> dwtBlockSizes;
     QList<QPoint> dwtTopLeftCorners;
@@ -244,7 +244,7 @@ private:
     LAUScan subtractScans(LAUScan scanA, LAUScan scanB);
     LAUScan addScans(LAUScan scanA, LAUScan scanB);
     LAUScan multiplyScans(float scalar, LAUScan scanB);
-    LAUScan createScan(float tau, LAUScan referscan);
+    LAUScan createScan(float tau, LAUScan scan);
     LAUScan maxScans(LAUScan scanA, LAUScan scanB);
     LAUScan minScans(LAUScan scanA, LAUScan scanB);
     float computeMSE(LAUScan scanA, LAUScan scanB);
@@ -328,7 +328,7 @@ public:
     ~LAUCodedApertureWidget();
 
     LAUScan smoothedScan();
-    static bool inspectScan(LAUScan scan);
+    static bool inspectScan(LAUScan scan, QWidget *parent = NULL);
 
 public slots:
     void onSetCodedAperture();

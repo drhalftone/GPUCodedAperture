@@ -93,7 +93,7 @@ LAUScan LAUCodedApertureWidget::smoothedScan()
     }
 
     LAUScan result = codedApertureFilter->reconstructDataCube(scan);
-    if (inspectScan(result)) {
+    if (inspectScan(result, this)) {
         return (result);
     }
     return (LAUScan());
@@ -102,13 +102,13 @@ LAUScan LAUCodedApertureWidget::smoothedScan()
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
-bool LAUCodedApertureWidget::inspectScan(LAUScan scan)
+bool LAUCodedApertureWidget::inspectScan(LAUScan scan, QWidget *parent)
 {
     if (scan.isValid()) {
         LAUCodedApertureGLWidget *widget = new LAUCodedApertureGLWidget(scan);
         widget->setMinimumSize(scan.width(), scan.height());
 
-        QDialog dialog;
+        QDialog dialog(parent);
         dialog.setLayout(new QVBoxLayout());
         dialog.setContentsMargins(0, 0, 0, 0);
         dialog.layout()->addWidget(widget);
@@ -167,7 +167,7 @@ void LAUCodedApertureGLWidget::wheelEvent(QWheelEvent *event)
 void LAUCodedApertureGLWidget::onUpdateScan(LAUScan scn)
 {
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
-    if (scn.isValid() && scn.colors() == 8)  {
+    if (scn.isValid())  {
         // MAKE A LOCAL COPY OF THE INCOMING SCAN
         scan = scn;
 
@@ -181,7 +181,11 @@ void LAUCodedApertureGLWidget::onUpdateScan(LAUScan scn)
 
         // CREATE THE GPU SIDE TEXTURE TO HOLD THE 3D DATA CUBE
         dataCube = new QOpenGLTexture(QOpenGLTexture::Target2D);
-        dataCube->setSize(2 * scan.width(), scan.height());
+        if (scan.colors() > 4) {
+            dataCube->setSize(2 * scan.width(), scan.height());
+        } else {
+            dataCube->setSize(scan.width(), scan.height());
+        }
         dataCube->setFormat(QOpenGLTexture::RGBA32F);
         dataCube->setWrapMode(QOpenGLTexture::ClampToBorder);
         dataCube->setMinificationFilter(QOpenGLTexture::Nearest);
@@ -189,7 +193,13 @@ void LAUCodedApertureGLWidget::onUpdateScan(LAUScan scn)
         dataCube->allocateStorage();
 
         // COPY FRAME BUFFER TEXTURE FROM GPU TO LOCAL CPU BUFFER
-        dataCube->setData(QOpenGLTexture::RGBA, QOpenGLTexture::Float32, (const void *)scan.constPointer());
+        if (scan.colors() == 1) {
+            dataCube->setData(QOpenGLTexture::Red, QOpenGLTexture::Float32, (const void *)scan.constPointer());
+        } else if (scan.colors() % 3 == 0) {
+            dataCube->setData(QOpenGLTexture::RGB, QOpenGLTexture::Float32, (const void *)scan.constPointer());
+        } else if (scan.colors() % 4 == 0) {
+            dataCube->setData(QOpenGLTexture::RGBA, QOpenGLTexture::Float32, (const void *)scan.constPointer());
+        }
 
         // UPDATE THE DISPLAY ON SCREEN
         update();
@@ -315,7 +325,7 @@ void LAUCodedApertureGLWidget::paintGL()
                 glActiveTexture(GL_TEXTURE0);
                 dataCube->bind();
                 prgrm.setUniformValue("qt_texture", 0);
-                prgrm.setUniformValue("qt_channel", channel % 8);
+                prgrm.setUniformValue("qt_channel", channel % scan.colors());
 
                 glVertexAttribPointer(prgrm.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
                 prgrm.enableAttributeArray("qt_vertex");
@@ -586,11 +596,11 @@ void LAUCodedApertureGLFilter::initializeShaders()
     prgrmReverseDWTy.link();
 
     prgrmForwardCodedAperture.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
-    prgrmForwardCodedAperture.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiForwardCodedAperture.frag");
+    prgrmForwardCodedAperture.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiForwardCAT.frag");
     prgrmForwardCodedAperture.link();
 
     prgrmReverseCodedAperture.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
-    prgrmReverseCodedAperture.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiReverseCodedAperture.frag");
+    prgrmReverseCodedAperture.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiReverseCAT.frag");
     prgrmReverseCodedAperture.link();
 
     prgrmU.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
@@ -601,13 +611,21 @@ void LAUCodedApertureGLFilter::initializeShaders()
     prgrmV.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiMapToVectorV.frag");
     prgrmV.link();
 
-    prgrmScalarMSE.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
-    prgrmScalarMSE.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiScalarMSE.frag");
-    prgrmScalarMSE.link();
+    prgrmAccumMSE.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiAccumulativeMSE.vert");
+    prgrmAccumMSE.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiAccumulativeMSE.frag");
+    prgrmAccumMSE.link();
 
-    prgrmAccumSum.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiAccumulativeSum.vert");
-    prgrmAccumSum.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiAccumulativeSum.frag");
-    prgrmAccumSum.link();
+    prgrmAccumMAX.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiAccumulativeMAX.vert");
+    prgrmAccumMAX.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiAccumulativeMAX.frag");
+    prgrmAccumMAX.link();
+
+    prgrmAccumMIN.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiAccumulativeMIN.vert");
+    prgrmAccumMIN.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiAccumulativeMIN.frag");
+    prgrmAccumMIN.link();
+
+    prgrmAccumSUM.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiAccumulativeSUM.vert");
+    prgrmAccumSUM.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiAccumulativeSUM.frag");
+    prgrmAccumSUM.link();
 
     setlocale(LC_ALL, "");
 }
@@ -714,11 +732,6 @@ void LAUCodedApertureGLFilter::initializeTextures()
     fboDWTf = new QOpenGLFramebufferObject((2 * (fboDWTAA->width() / 2 + 16)) / 2, fboDWTAA->height(), fboFormat);
     fboDWTf->release();
 
-    // CREATE THE FINAL FBO FOR HOLDING THE MONOCHROME OUTPUT
-    fboFormat.setInternalTextureFormat(GL_R32F);
-    fboSpectralModel = new QOpenGLFramebufferObject(numCols, numRows, fboFormat);
-    fboSpectralModel->release();
-
     // CREATE FRAME BUFFER OBJECTS FOR ACCUMULATIVE SUM OPERATIONS BY GENERATING
     // TWO LAYERS OF BUFFERS THAT REDUCE THE SIZE OF THE TARGET BUFFER BY FACTORS
     // OF EIGTH IN THE HEIGHT AND WIDTH DIMENSIONS
@@ -736,6 +749,11 @@ void LAUCodedApertureGLFilter::initializeTextures()
 
     fboScalarC = new QOpenGLFramebufferObject(1, 1, fboFormat);
     fboScalarC->release();
+
+    // CREATE THE FINAL FBO FOR HOLDING THE MONOCHROME OUTPUT
+    fboFormat.setInternalTextureFormat(GL_R32F);
+    fboSpectralModel = new QOpenGLFramebufferObject(numCols, numRows, fboFormat);
+    fboSpectralModel->release();
 
     // CREATE A COMPRESSED SPACE DATA CUBE TEXTURE
     csDataCube = new QOpenGLTexture(QOpenGLTexture::Target2D);
@@ -787,12 +805,12 @@ void LAUCodedApertureGLFilter::setCodedAperture(QImage image)
     if (surface && makeCurrent(surface)) {
         QOpenGLShaderProgram prgrmA;
         prgrmA.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
-        prgrmA.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiBuildCodedApertureLeft.frag");
+        prgrmA.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiBuildCATLeft.frag");
         prgrmA.link();
 
         QOpenGLShaderProgram prgrmB;
         prgrmB.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiVertexShader.vert");
-        prgrmB.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiBuildCodedApertureRight.frag");
+        prgrmB.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiBuildCATRight.frag");
         prgrmB.link();
 
         // CREATE AN OPENGL TEXTURE TO HOLD THE CODED APERTURE
@@ -887,6 +905,8 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
 
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
     //result = forwardDWCTransform(ideal);
+    //return (result);
+
     //LAUScan result2 = result;
     //memset(result2.pointer(), 0, result2.length());
     //qDebug() << computeMSE(result, result2);
@@ -962,12 +982,9 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
 
     //vectorXi = multiplyScans(0.9, vectorXi);
 
-
-
     // CALL METHOD FOR CALCULATING THE INITIAL TAU PARAMETER ACCORDING TO  0.5 * max(abs(AT(y)))
     //firstTau = maxAbsValue(vectorXi) / 2.0f;
-    firstTau = 0.35;
-
+    firstTau = 0.15;
 
     // INITIALIZE U AND V VECTORS (LINES 345 AND 346 OF GPSR_BB SCRIPT)
     LAUScan vectorU = computeVectorU(vectorXi);
@@ -1081,7 +1098,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
         float prev_f = f;
         f = objectiveFun(vectorResidue, vectorU, vectorV, firstTau);
 
-        //COMPUTER NEW ALPHA(LINE 513 OF GPSR_BB SCRIPT)
+        // COMPUTER NEW ALPHA(LINE 513 OF GPSR_BB SCRIPT)
         float dd = innerProduct(du, du) + innerProduct(dv, dv);
         // qDebug()<<"dd = "<<dd<<"dGd = "<<dGd<<"dd/dGd = "<<dd/dGd;
         if (dGd <= 0) {
@@ -2445,21 +2462,21 @@ LAUScan LAUCodedApertureGLFilter::computeVectorU(LAUScan scan)
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
     if (makeCurrent(surface)) {
         // COPY FRAME BUFFER TEXTURE FROM GPU TO LOCAL CPU BUFFER
-        dataCube->setData(QOpenGLTexture::RGBA, QOpenGLTexture::Float32, (const void *)scan.constPointer());
+        csDataCube->setData(QOpenGLTexture::RGBA, QOpenGLTexture::Float32, (const void *)scan.constPointer());
 
         // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
         // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
-        if (fboDataCubeA->bind()) {
+        if (fboDWT->bind()) {
             if (prgrmU.bind()) {
                 if (vertexBuffer.bind()) {
                     if (indexBuffer.bind()) {
                         // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                        glViewport(0, 0, fboDataCubeA->width(), fboDataCubeA->height());
+                        glViewport(0, 0, fboDWT->width(), fboDWT->height());
                         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                         // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
                         glActiveTexture(GL_TEXTURE0);
-                        dataCube->bind();
+                        csDataCube->bind();
                         prgrmU.setUniformValue("qt_texture", 0);
 
                         // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
@@ -2475,11 +2492,11 @@ LAUScan LAUCodedApertureGLFilter::computeVectorU(LAUScan scan)
                 }
                 prgrmU.release();
             }
-            fboDataCubeA->release();
+            fboDWT->release();
         }
 
         // DOWNLOAD THE GPU RESULT BACK TO THE CPU
-        glBindTexture(GL_TEXTURE_2D, fboDataCubeA->texture());
+        glBindTexture(GL_TEXTURE_2D, fboDWT->texture());
         glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
         doneCurrent();
     }
@@ -2499,21 +2516,21 @@ LAUScan LAUCodedApertureGLFilter::computeVectorV(LAUScan scan)
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
     if (makeCurrent(surface)) {
         // COPY FRAME BUFFER TEXTURE FROM GPU TO LOCAL CPU BUFFER
-        dataCube->setData(QOpenGLTexture::RGBA, QOpenGLTexture::Float32, (const void *)scan.constPointer());
+        csDataCube->setData(QOpenGLTexture::RGBA, QOpenGLTexture::Float32, (const void *)scan.constPointer());
 
         // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
         // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
-        if (fboDataCubeB->bind()) {
+        if (fboDWT->bind()) {
             if (prgrmV.bind()) {
                 if (vertexBuffer.bind()) {
                     if (indexBuffer.bind()) {
                         // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                        glViewport(0, 0, fboDataCubeB->width(), fboDataCubeB->height());
+                        glViewport(0, 0, fboDWT->width(), fboDWT->height());
                         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                         // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
                         glActiveTexture(GL_TEXTURE0);
-                        dataCube->bind();
+                        csDataCube->bind();
                         prgrmV.setUniformValue("qt_texture", 0);
 
                         // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
@@ -2529,11 +2546,11 @@ LAUScan LAUCodedApertureGLFilter::computeVectorV(LAUScan scan)
                 }
                 prgrmV.release();
             }
-            fboDataCubeB->release();
+            fboDWT->release();
         }
 
         // DOWNLOAD THE GPU RESULT BACK TO THE CPU
-        glBindTexture(GL_TEXTURE_2D, fboDataCubeB->texture());
+        glBindTexture(GL_TEXTURE_2D, fboDWT->texture());
         glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)scan.pointer());
         doneCurrent();
     }
@@ -2560,8 +2577,8 @@ float LAUCodedApertureGLFilter::maxAbsValue(LAUScan scan)
     // ITERATE THROUGH EACH PIXEL COMPARING WITH THE MAX VECTOR AT EACH LOAD
     int index = 0;
     float *buffer = (float *)scan.constPointer();
-    for (unsigned int row = 0; row < numRows; row++) {
-        for (unsigned int col = 0; col < numCols; col++) {
+    for (unsigned int row = 0; row < scan.height(); row++) {
+        for (unsigned int col = 0; col < scan.width(); col++) {
             maxVec = _mm_max_ps(maxVec, _mm_andnot_ps(sgnVec, _mm_load_ps(buffer + index + 0)));
             maxVec = _mm_max_ps(maxVec, _mm_andnot_ps(sgnVec, _mm_load_ps(buffer + index + 4)));
             index += 8;
@@ -2598,8 +2615,8 @@ float LAUCodedApertureGLFilter::sumAbsValue(LAUScan scan)
     // ITERATE THROUGH EACH PIXEL COMPARING WITH THE MAX VECTOR AT EACH LOAD
     int index = 0;
     float *buffer = (float *)scan.constPointer();
-    for (unsigned int row = 0; row < numRows; row++) {
-        for (unsigned int col = 0; col < numCols; col++) {
+    for (unsigned int row = 0; row < scan.height(); row++) {
+        for (unsigned int col = 0; col < scan.width(); col++) {
             sumVec = _mm_add_ps(sumVec, _mm_andnot_ps(sgnVec, _mm_load_ps(buffer + index + 0)));
             sumVec = _mm_add_ps(sumVec, _mm_andnot_ps(sgnVec, _mm_load_ps(buffer + index + 4)));
             index += 8;
@@ -2636,8 +2653,8 @@ int LAUCodedApertureGLFilter::nonZeroElements(LAUScan scan)
     // AND ADDING THE LOGICAL RESULT TO OUR INTEGER ACCUMULATION VECTOR
     int index = 0;
     float *buffer = (float *)scan.constPointer();
-    for (unsigned int row = 0; row < numRows; row++) {
-        for (unsigned int col = 0; col < numCols; col++) {
+    for (unsigned int row = 0; row < scan.height(); row++) {
+        for (unsigned int col = 0; col < scan.width(); col++) {
             pixVec = _mm_add_epi32(pixVec, _mm_castps_si128(_mm_cmpneq_ps(zerVec, _mm_load_ps(buffer + index + 0))));
             pixVec = _mm_add_epi32(pixVec, _mm_castps_si128(_mm_cmpneq_ps(zerVec, _mm_load_ps(buffer + index + 4))));
             index += 8;
@@ -2668,8 +2685,8 @@ float LAUCodedApertureGLFilter::objectiveFun(LAUScan vectorResidue, LAUScan vect
     int index = 0;
     float *bufferA = (float *)vectorU.constPointer();
     float *bufferB = (float *)vectorV.constPointer();
-    for (unsigned int row = 0; row < numRows; row++) {
-        for (unsigned int col = 0; col < numCols; col++) {
+    for (unsigned int row = 0; row < vectorU.height(); row++) {
+        for (unsigned int col = 0; col < vectorU.width(); col++) {
             // GRAB THE VALUE
             __m128 pixUA = _mm_load_ps(bufferA + index + 0);
             __m128 pixUB = _mm_load_ps(bufferA + index + 4);
@@ -2724,45 +2741,12 @@ float LAUCodedApertureGLFilter::innerProduct(LAUScan scanA, LAUScan scanB)
     float *bufferB = (float *)scanB.constPointer();
 
     // ITERATE THROUGH EACH PIXEL ADDING VECTORS FROM EACHOTHER
-    if (scanA.colors() == 1) {
-        int index = 0;
-        for (unsigned int row = 0; row < numRows; row++) {
-            for (unsigned int col = 0; col < numCols; col += 4) {
-                // GRAB THE VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
-                // AND STORE THE RESULTING VECTORS TO MEMORY
-                sumVec = _mm_add_ps(sumVec, _mm_mul_ps(_mm_load_ps(bufferA + index), _mm_load_ps(bufferB + index)));
-
-                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
-                index += 4;
-
-            }
-        }
-    } else if (scanA.colors() == 4) {
-        int index = 0;
-        for (unsigned int row = 0; row < numRows; row++) {
-            for (unsigned int col = 0; col < numCols; col++) {
-                // GRAB THE VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
-                // AND STORE THE RESULTING VECTORS TO MEMORY
-                sumVec = _mm_add_ps(sumVec, _mm_mul_ps(_mm_load_ps(bufferA + index), _mm_load_ps(bufferB + index)));
-
-                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
-                index += 4;
-            }
-        }
-    } else if (scanA.colors() == 8) {
-        int index = 0;
-        for (unsigned int row = 0; row < numRows; row++) {
-            for (unsigned int col = 0; col < numCols; col++) {
-                // GRAB THE VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
-                // AND STORE THE RESULTING VECTORS TO MEMORY
-                sumVec = _mm_add_ps(sumVec, _mm_mul_ps(_mm_load_ps(bufferA + index + 0), _mm_load_ps(bufferB + index + 0)));
-                sumVec = _mm_add_ps(sumVec, _mm_mul_ps(_mm_load_ps(bufferA + index + 4), _mm_load_ps(bufferB + index + 4)));
-
-                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
-                index += 8;
-            }
-        }
+    for (unsigned int byt = 0; byt < scanA.length() / 4; byt += 4) {
+        // GRAB THE VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
+        // AND STORE THE RESULTING VECTORS TO MEMORY
+        sumVec = _mm_add_ps(sumVec, _mm_mul_ps(_mm_load_ps(bufferA + byt), _mm_load_ps(bufferB + byt)));
     }
+
     // EXTRACT THE FLOATS FROM THE VEC4
     float a, b, c, d;
     *(int *)&a = _mm_extract_ps(sumVec, 0);
@@ -2794,44 +2778,12 @@ LAUScan LAUCodedApertureGLFilter::subtractScans(LAUScan scanA, LAUScan scanB)
     float *bufferR = (float *)result.constPointer();
 
     // ITERATE THROUGH EACH PIXEL SUBSTRACTING VECTORS FROM EACHOTHER
-    if (scanA.colors() == 1) {
-        int index = 0;
-        for (unsigned int row = 0; row < numRows; row++) {
-            for (unsigned int col = 0; col < numCols; col += 4) {
-                // GRAB THE DIFFERENCE BETWEEN THE NEXT SET OF FOUR FLOATS
-                // AND STORE THE RESULTING VECTORS TO MEMORY
-                _mm_stream_ps(bufferR + index, _mm_sub_ps(_mm_load_ps(bufferA + index), _mm_load_ps(bufferB + index)));
-
-                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
-                index += 4;
-            }
-        }
-    } else if (scanA.colors() == 4) {
-        int index = 0;
-        for (unsigned int row = 0; row < numRows; row++) {
-            for (unsigned int col = 0; col < numCols; col++) {
-                // GRAB THE DIFFERENCE BETWEEN THE NEXT SET OF FOUR FLOATS
-                // AND STORE THE RESULTING VECTORS TO MEMORY
-                _mm_stream_ps(bufferR + index, _mm_sub_ps(_mm_load_ps(bufferA + index), _mm_load_ps(bufferB + index)));
-
-                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
-                index += 4;
-            }
-        }
-    } else if (scanA.colors() == 8) {
-        int index = 0;
-        for (unsigned int row = 0; row < numRows; row++) {
-            for (unsigned int col = 0; col < numCols; col++) {
-                // GRAB THE DIFFERENCE BETWEEN THE NEXT SET OF FOUR FLOATS
-                // AND STORE THE RESULTING VECTORS TO MEMORY
-                _mm_stream_ps(bufferR + index + 0, _mm_sub_ps(_mm_load_ps(bufferA + index + 0), _mm_load_ps(bufferB + index + 0)));
-                _mm_stream_ps(bufferR + index + 4, _mm_sub_ps(_mm_load_ps(bufferA + index + 4), _mm_load_ps(bufferB + index + 4)));
-
-                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
-                index += 8;
-            }
-        }
+    for (unsigned int byt = 0; byt < scanA.length() / 4; byt += 4) {
+        // GRAB THE DIFFERENCE BETWEEN THE NEXT SET OF FOUR FLOATS
+        // AND STORE THE RESULTING VECTORS TO MEMORY
+        _mm_stream_ps(bufferR + byt, _mm_sub_ps(_mm_load_ps(bufferA + byt), _mm_load_ps(bufferB + byt)));
     }
+
     // RETURN THE RESULTING SCAN
     return (result);
 }
@@ -2855,44 +2807,12 @@ LAUScan LAUCodedApertureGLFilter::addScans(LAUScan scanA, LAUScan scanB)
     float *bufferR = (float *)result.constPointer();
 
     // ITERATE THROUGH EACH PIXEL ADDING VECTORS FROM EACHOTHER
-    if (scanA.colors() == 1) {
-        int index = 0;
-        for (unsigned int row = 0; row < numRows; row++) {
-            for (unsigned int col = 0; col < numCols; col += 4) {
-                // GRAB THE VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
-                // AND STORE THE RESULTING VECTORS TO MEMORY
-                _mm_stream_ps(bufferR + index, _mm_add_ps(_mm_load_ps(bufferA + index), _mm_load_ps(bufferB + index)));
-
-                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
-                index += 4;
-            }
-        }
-    } else if (scanA.colors() == 4) {
-        int index = 0;
-        for (unsigned int row = 0; row < numRows; row++) {
-            for (unsigned int col = 0; col < numCols; col++) {
-                // GRAB THE VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
-                // AND STORE THE RESULTING VECTORS TO MEMORY
-                _mm_stream_ps(bufferR + index, _mm_add_ps(_mm_load_ps(bufferA + index), _mm_load_ps(bufferB + index)));
-
-                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
-                index += 4;
-            }
-        }
-    } else if (scanA.colors() == 8) {
-        int index = 0;
-        for (unsigned int row = 0; row < numRows; row++) {
-            for (unsigned int col = 0; col < numCols; col++) {
-                // GRAB THE VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
-                // AND STORE THE RESULTING VECTORS TO MEMORY
-                _mm_stream_ps(bufferR + index + 0, _mm_add_ps(_mm_load_ps(bufferA + index + 0), _mm_load_ps(bufferB + index + 0)));
-                _mm_stream_ps(bufferR + index + 4, _mm_add_ps(_mm_load_ps(bufferA + index + 4), _mm_load_ps(bufferB + index + 4)));
-
-                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
-                index += 8;
-            }
-        }
+    for (unsigned int byt = 0; byt < scanA.length() / 4; byt += 4) {
+        // GRAB THE DIFFERENCE BETWEEN THE NEXT SET OF FOUR FLOATS
+        // AND STORE THE RESULTING VECTORS TO MEMORY
+        _mm_stream_ps(bufferR + byt, _mm_add_ps(_mm_load_ps(bufferA + byt), _mm_load_ps(bufferB + byt)));
     }
+
     // RETURN THE RESULTING SCAN
     return (result);
 }
@@ -2913,44 +2833,12 @@ LAUScan LAUCodedApertureGLFilter::multiplyScans(float scalar, LAUScan scanA)
     float *bufferR = (float *)result.constPointer();
 
     // ITERATE THROUGH EACH PIXEL SUBSTRACTING VECTORS FROM EACHOTHER
-    if (scanA.colors() == 1) {
-        int index = 0;
-        for (unsigned int row = 0; row < numRows; row++) {
-            for (unsigned int col = 0; col < numCols; col += 4) {
-                // GRAB THE VALUE
-                // AND STORE THE RESULTING VECTORS TO MEMORY
-                _mm_stream_ps(bufferR + index, _mm_mul_ps(_mm_load_ps(bufferA + index), scalarVec));
-
-                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
-                index += 4;
-            }
-        }
-    } else if (scanA.colors() == 4) {
-        int index = 0;
-        for (unsigned int row = 0; row < numRows; row++) {
-            for (unsigned int col = 0; col < numCols; col++) {
-                // GRAB THE VALUE
-                // AND STORE THE RESULTING VECTORS TO MEMORY
-                _mm_stream_ps(bufferR + index, _mm_mul_ps(_mm_load_ps(bufferA + index), scalarVec));
-
-                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
-                index += 4;
-            }
-        }
-    } else if (scanA.colors() == 8) {
-        int index = 0;
-        for (unsigned int row = 0; row < numRows; row++) {
-            for (unsigned int col = 0; col < numCols; col++) {
-                // GRAB THE VALUE
-                // AND STORE THE RESULTING VECTORS TO MEMORY
-                _mm_stream_ps(bufferR + index + 0, _mm_mul_ps(_mm_load_ps(bufferA + index + 0), scalarVec));
-                _mm_stream_ps(bufferR + index + 4, _mm_mul_ps(_mm_load_ps(bufferA + index + 4), scalarVec));
-
-                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
-                index += 8;
-            }
-        }
+    for (unsigned int byt = 0; byt < scanA.length() / 4; byt += 4) {
+        // GRAB THE DIFFERENCE BETWEEN THE NEXT SET OF FOUR FLOATS
+        // AND STORE THE RESULTING VECTORS TO MEMORY
+        _mm_stream_ps(bufferR + byt, _mm_mul_ps(_mm_load_ps(bufferA + byt), scalarVec));
     }
+
     // RETURN THE RESULTING SCAN
     return (result);
 }
@@ -2973,43 +2861,10 @@ LAUScan LAUCodedApertureGLFilter::maxScans(LAUScan scanA, LAUScan scanB)
     float *bufferR = (float *)result.constPointer();
 
     // ITERATE THROUGH EACH PIXEL ADDING VECTORS FROM EACHOTHER
-    if (scanA.colors() == 1) {
-        int index = 0;
-        for (unsigned int row = 0; row < numRows; row++) {
-            for (unsigned int col = 0; col < numCols; col += 4) {
-                // GRAB THE MAX VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
-                // AND STORE THE RESULTING VECTORS TO MEMORY
-                _mm_stream_ps(bufferR + index, _mm_max_ps(_mm_load_ps(bufferA + index), _mm_load_ps(bufferB + index)));
-
-                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
-                index += 4;
-            }
-        }
-    } else if (scanA.colors() == 4) {
-        int index = 0;
-        for (unsigned int row = 0; row < numRows; row++) {
-            for (unsigned int col = 0; col < numCols; col++) {
-                // GRAB THE MAX VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
-                // AND STORE THE RESULTING VECTORS TO MEMORY
-                _mm_stream_ps(bufferR + index, _mm_max_ps(_mm_load_ps(bufferA + index), _mm_load_ps(bufferB + index)));
-
-                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
-                index += 4;
-            }
-        }
-    } else if (scanA.colors() == 8) {
-        int index = 0;
-        for (unsigned int row = 0; row < numRows; row++) {
-            for (unsigned int col = 0; col < numCols; col++) {
-                // GRAB THE MAX VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
-                // AND STORE THE RESULTING VECTORS TO MEMORY
-                _mm_stream_ps(bufferR + index + 0, _mm_max_ps(_mm_load_ps(bufferA + index + 0), _mm_load_ps(bufferB + index + 0)));
-                _mm_stream_ps(bufferR + index + 4, _mm_max_ps(_mm_load_ps(bufferA + index + 4), _mm_load_ps(bufferB + index + 4)));
-
-                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
-                index += 8;
-            }
-        }
+    for (unsigned int byt = 0; byt < scanA.length() / 4; byt += 4) {
+        // GRAB THE MAX VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
+        // AND STORE THE RESULTING VECTORS TO MEMORY
+        _mm_stream_ps(bufferR + byt, _mm_max_ps(_mm_load_ps(bufferA + byt), _mm_load_ps(bufferB + byt)));
     }
 
     // RETURN THE RESULTING SCAN
@@ -3035,44 +2890,12 @@ LAUScan LAUCodedApertureGLFilter::minScans(LAUScan scanA, LAUScan scanB)
     float *bufferR = (float *)result.constPointer();
 
     // ITERATE THROUGH EACH PIXEL ADDING VECTORS FROM EACHOTHER
-    if (scanA.colors() == 1) {
-        int index = 0;
-        for (unsigned int row = 0; row < numRows; row++) {
-            for (unsigned int col = 0; col < numCols; col += 4) {
-                // GRAB THE MIN VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
-                // AND STORE THE RESULTING VECTORS TO MEMORY
-                _mm_stream_ps(bufferR + index, _mm_min_ps(_mm_load_ps(bufferA + index), _mm_load_ps(bufferB + index)));
-
-                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
-                index += 4;
-            }
-        }
-    } else if (scanA.colors() == 4) {
-        int index = 0;
-        for (unsigned int row = 0; row < numRows; row++) {
-            for (unsigned int col = 0; col < numCols; col++) {
-                // GRAB THE MIN VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
-                // AND STORE THE RESULTING VECTORS TO MEMORY
-                _mm_stream_ps(bufferR + index, _mm_min_ps(_mm_load_ps(bufferA + index), _mm_load_ps(bufferB + index)));
-
-                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
-                index += 4;
-            }
-        }
-    } else if (scanA.colors() == 8) {
-        int index = 0;
-        for (unsigned int row = 0; row < numRows; row++) {
-            for (unsigned int col = 0; col < numCols; col++) {
-                // GRAB THE MIN VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
-                // AND STORE THE RESULTING VECTORS TO MEMORY
-                _mm_stream_ps(bufferR + index + 0, _mm_min_ps(_mm_load_ps(bufferA + index + 0), _mm_load_ps(bufferB + index + 0)));
-                _mm_stream_ps(bufferR + index + 4, _mm_min_ps(_mm_load_ps(bufferA + index + 4), _mm_load_ps(bufferB + index + 4)));
-
-                // UPDATE THE INDEX TO POINT TO THE NEXT PIXEL COMPOSED OF 8 FLOATS
-                index += 8;
-            }
-        }
+    for (unsigned int byt = 0; byt < scanA.length() / 4; byt += 4) {
+        // GRAB THE MIN VALUE BETWEEN THE NEXT SET OF FOUR FLOATS
+        // AND STORE THE RESULTING VECTORS TO MEMORY
+        _mm_stream_ps(bufferR + byt, _mm_min_ps(_mm_load_ps(bufferA + byt), _mm_load_ps(bufferB + byt)));
     }
+
     // RETURN THE RESULTING SCAN
     return (result);
 }
@@ -3080,20 +2903,20 @@ LAUScan LAUCodedApertureGLFilter::minScans(LAUScan scanA, LAUScan scanB)
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
-LAUScan LAUCodedApertureGLFilter::createScan(float tau, LAUScan referscan)
+LAUScan LAUCodedApertureGLFilter::createScan(float tau, LAUScan scan)
 {
     // CREATE AN OUTPUT SCAN
-    LAUScan result = LAUScan(referscan.width(), referscan.height(), referscan.color());
+    LAUScan result = LAUScan(scan.width(), scan.height(), scan.color());
 
     // GRAB THE POINTERS TO THE OUTPUT BUFFER
     float *bufferR = (float *)result.constPointer();
 
     __m128 valueVec = _mm_set1_ps(tau);
     // ITERATE THROUGH EACH PIXEL ADDING VECTORS FROM EACHOTHER
-    if (referscan.color() == 1) {
+    if (scan.color() == 1) {
         int index = 0;
-        for (unsigned int row = 0; row < numRows; row++) {
-            for (unsigned int col = 0; col < numCols; col += 4) {
+        for (unsigned int row = 0; row < scan.height(); row++) {
+            for (unsigned int col = 0; col < scan.width(); col++) {
                 // FILL IN THE NEW LAUSCAN OBJECT
                 // AND STORE THE RESULTING VECTORS TO MEMORY
                 _mm_stream_ps(bufferR + index, valueVec);
@@ -3102,10 +2925,10 @@ LAUScan LAUCodedApertureGLFilter::createScan(float tau, LAUScan referscan)
                 index += 4;
             }
         }
-    } else if (referscan.colors() == 4) {
+    } else if (scan.colors() == 4) {
         int index = 0;
-        for (unsigned int row = 0; row < numRows; row++) {
-            for (unsigned int col = 0; col < numCols; col++) {
+        for (unsigned int row = 0; row < scan.height(); row++) {
+            for (unsigned int col = 0; col < scan.width(); col++) {
                 // FILL IN THE NEW LAUSCAN OBJECT
                 // AND STORE THE RESULTING VECTORS TO MEMORY
                 _mm_stream_ps(bufferR + index, valueVec);
@@ -3114,10 +2937,10 @@ LAUScan LAUCodedApertureGLFilter::createScan(float tau, LAUScan referscan)
                 index += 4;
             }
         }
-    } else if (referscan.color() == 8) {
+    } else if (scan.color() == 8) {
         int index = 0;
-        for (unsigned int row = 0; row < numRows; row++) {
-            for (unsigned int col = 0; col < numCols; col++) {
+        for (unsigned int row = 0; row < scan.height(); row++) {
+            for (unsigned int col = 0; col < scan.width(); col++) {
                 // FILL IN THE NEW LAUSCAN OBJECT
                 // AND STORE THE RESULTING VECTORS TO MEMORY
                 _mm_stream_ps(bufferR + index + 0, valueVec);
@@ -3153,7 +2976,7 @@ float LAUCodedApertureGLFilter::computeMSE(LAUScan scanA, LAUScan scanB)
 
         // THIS LOOP CALCULATES THE SUM OF SQUARED ERRORS FOR EACH PIXEL OF THE INPUT TEXTURES
         if (fboScalarA->bind()) {
-            if (prgrmScalarMSE.bind()) {
+            if (prgrmAccumMSE.bind()) {
                 if (vertexBuffer.bind()) {
                     if (indexBuffer.bind()) {
                         // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
@@ -3163,18 +2986,18 @@ float LAUCodedApertureGLFilter::computeMSE(LAUScan scanA, LAUScan scanB)
                         // BIND THE TEXTURES FOR THE FILTERING OPERATION
                         glActiveTexture(GL_TEXTURE0);
                         txtScalarA->bind();
-                        prgrmScalarMSE.setUniformValue("qt_textureA", 0);
+                        prgrmAccumMSE.setUniformValue("qt_textureA", 0);
 
                         glActiveTexture(GL_TEXTURE1);
                         txtScalarB->bind();
-                        prgrmScalarMSE.setUniformValue("qt_textureB", 1);
+                        prgrmAccumMSE.setUniformValue("qt_textureB", 1);
 
                         // SET THE BLOCK SIZE FOR ACCUMULATED SUMS
-                        prgrmScalarMSE.setUniformValue("qt_blockSize", QPointF(QPoint(8, 8)));
+                        prgrmAccumMSE.setUniformValue("qt_blockSize", QPointF(QPoint(8, 8)));
 
                         // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
-                        glVertexAttribPointer(prgrmScalarMSE.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
-                        prgrmScalarMSE.enableAttributeArray("qt_vertex");
+                        glVertexAttribPointer(prgrmAccumMSE.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+                        prgrmAccumMSE.enableAttributeArray("qt_vertex");
 
                         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
@@ -3183,7 +3006,7 @@ float LAUCodedApertureGLFilter::computeMSE(LAUScan scanA, LAUScan scanB)
                     }
                     vertexBuffer.release();
                 }
-                prgrmScalarMSE.release();
+                prgrmAccumMSE.release();
             }
             fboScalarA->release();
         }
@@ -3191,7 +3014,7 @@ float LAUCodedApertureGLFilter::computeMSE(LAUScan scanA, LAUScan scanB)
         // THIS LOOP ACCUMULATES PIXELS WITHIN 8X8 BLOCKS AND RETURNS THEIR SUM
         // IN PARTICULAR, THIS LOOP REDUCES THE 640X480 DOWN TO 80X60
         if (fboScalarB->bind()) {
-            if (prgrmAccumSum.bind()) {
+            if (prgrmAccumSUM.bind()) {
                 if (vertexBuffer.bind()) {
                     if (indexBuffer.bind()) {
                         // SET THE VIEWPORT TO MATCH THE SIZE OF THE FBO
@@ -3201,14 +3024,14 @@ float LAUCodedApertureGLFilter::computeMSE(LAUScan scanA, LAUScan scanB)
                         // BIND THE TEXTURES FOR THE FILTERING OPERATION
                         glActiveTexture(GL_TEXTURE0);
                         glBindTexture(GL_TEXTURE_2D, fboScalarA->texture());
-                        prgrmAccumSum.setUniformValue("qt_texture", 0);
+                        prgrmAccumSUM.setUniformValue("qt_texture", 0);
 
                         // TELL THE SHADER HOW LARGE A BLOCK TO PROCESS
-                        prgrmAccumSum.setUniformValue("qt_blockSize", QPointF(QPoint(8, 8)));
+                        prgrmAccumSUM.setUniformValue("qt_blockSize", QPointF(QPoint(8, 8)));
 
                         // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
-                        glVertexAttribPointer(prgrmAccumSum.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
-                        prgrmAccumSum.enableAttributeArray("qt_vertex");
+                        glVertexAttribPointer(prgrmAccumSUM.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+                        prgrmAccumSUM.enableAttributeArray("qt_vertex");
 
                         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
@@ -3217,7 +3040,7 @@ float LAUCodedApertureGLFilter::computeMSE(LAUScan scanA, LAUScan scanB)
                     }
                     vertexBuffer.release();
                 }
-                prgrmAccumSum.release();
+                prgrmAccumSUM.release();
             }
             fboScalarB->release();
         }
@@ -3225,7 +3048,7 @@ float LAUCodedApertureGLFilter::computeMSE(LAUScan scanA, LAUScan scanB)
         // THIS LOOP ACCUMULATES PIXELS WITHIN 8X8 BLOCKS AND RETURNS THEIR SUM
         // IN PARTICULAR, THIS LOOP REDUCES THE 640X480 DOWN TO 80X60
         if (fboScalarC->bind()) {
-            if (prgrmAccumSum.bind()) {
+            if (prgrmAccumSUM.bind()) {
                 if (vertexBuffer.bind()) {
                     if (indexBuffer.bind()) {
                         // SET THE VIEWPORT TO MATCH THE SIZE OF THE FBO
@@ -3235,14 +3058,14 @@ float LAUCodedApertureGLFilter::computeMSE(LAUScan scanA, LAUScan scanB)
                         // BIND THE TEXTURES FOR THE FILTERING OPERATION
                         glActiveTexture(GL_TEXTURE0);
                         glBindTexture(GL_TEXTURE_2D, fboScalarB->texture());
-                        prgrmAccumSum.setUniformValue("qt_texture", 0);
+                        prgrmAccumSUM.setUniformValue("qt_texture", 0);
 
                         // TELL THE SHADER HOW LARGE A BLOCK TO PROCESS
-                        prgrmAccumSum.setUniformValue("qt_blockSize", QPointF(QPoint(fboScalarB->width(), fboScalarB->height())));
+                        prgrmAccumSUM.setUniformValue("qt_blockSize", QPointF(QPoint(fboScalarB->width(), fboScalarB->height())));
 
                         // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
-                        glVertexAttribPointer(prgrmAccumSum.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
-                        prgrmAccumSum.enableAttributeArray("qt_vertex");
+                        glVertexAttribPointer(prgrmAccumSUM.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+                        prgrmAccumSUM.enableAttributeArray("qt_vertex");
 
                         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
@@ -3251,12 +3074,21 @@ float LAUCodedApertureGLFilter::computeMSE(LAUScan scanA, LAUScan scanB)
                     }
                     vertexBuffer.release();
                 }
-                prgrmAccumSum.release();
+                prgrmAccumSUM.release();
             }
             fboScalarC->release();
         }
+        // CREATE A VECTOR TO HOLD THE INCOMING GPU FRAME BUFFER OBJECT
+        float mse[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+        // DOWNLOAD THE FBO FROM THE GPU TO THE CPU
         glBindTexture(GL_TEXTURE_2D, fboScalarC->texture());
-        glGetTexImage(GL_TEXTURE_2D, 0, GL_RED, GL_FLOAT, (unsigned char *)&result);
+        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, (unsigned char *)mse);
+
+        // COMBINE THE VEC4 INTO A SINGLE SCALAR
+        result = mse[0] + mse[1] + mse[2] + mse[3];
+
+        // RELEASE THE CURRENT OPENGL CONTEXT
         doneCurrent();
     }
     return (result);

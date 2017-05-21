@@ -13,16 +13,16 @@ void main()
     ivec2 coord = ivec2(gl_FragCoord.xy) * block;
 
     // ITERATE THROUGH EACH PIXEL IN THE BLOCK
-    qt_fragColor = ivec4(0.0, 0.0, 0.0, 0.0);
+    qt_fragColor = vec4(0.0, 0.0, 0.0, 0.0);
     for (int row = 0; row < block.y; row++){
         for (int col = 0; col < block.x; col++){
-            // CALCULATE THE SUM OF PIXELS
+            // CALCULATE THE DIFFERENCE BETWEEN PIXELS
             vec4 pixelA = texelFetch(qt_textureA, coord + ivec2(col, row), 0);
             vec4 pixelB = texelFetch(qt_textureB, coord + ivec2(col, row), 0);
-            vec4 pixelC = pixelA + pixelB;
+            vec4 pixelC = pixelA - pixelB;
 
             // ACCUMULATE THE SUM OF THE SQUARE OF THE DIFFERENCE VECTOR
-            qt_fragColor.r += pixelC.r + pixelC.g + pixelC.b + pixelC.a;
+            qt_fragColor += pixelC * pixelC;
         }
     }
 

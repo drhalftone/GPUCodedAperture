@@ -14,7 +14,7 @@ void main()
 
     // ITERATE THROUGH EACH PIXEL IN THE WINDOW
     qt_fragColor = texelFetch(qt_texture, ivec2(2 * (coord.x/2) + int(qt_channel>3), coord.y), 0);
-    qt_fragColor.rgba = vec4(1.0, 1.0, 1.0, 1.0) * qt_fragColor[qt_channel%4];
+    qt_fragColor.rgba = abs(vec4(1.0, 1.0, 1.0, 1.0) * qt_fragColor[qt_channel%4]);
 
     return;
 }
