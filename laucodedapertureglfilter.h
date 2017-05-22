@@ -166,11 +166,11 @@ public:
     void initialize();
     void setCodedAperture(QImage image);
 
-    LAUScan reconstructDataCube(LAUScan ideal);     // DERIVE THE 3D DATACUBE FROM THE MONOCHROME IMAGE
-    LAUScan forwardDWCTransform(LAUScan scan);      // DERIVE THE FORWARD DWT+DCT TRANSFORM OF THE 3D DATACUBE
-    LAUScan reverseDWCTransform(LAUScan scan);      // DERIVE THE INVERSE DWT+DCT TRANSFORM OF THE 3D DATACUBE
-    LAUScan forwardCodedAperture(LAUScan scan);     // GENERATE THE MONOCHROME IMAGE FROM THE 3D DATACUBE USING THE CODED APERTURE
-    LAUScan reverseCodedAperture(LAUScan scan);     // GENERATE THE 3D DATACUBE FROM THE MONOCHROME IMAGE USING THE CODED APERTURE
+    LAUScan reconstructDataCube(LAUScan ideal);                // DERIVE THE 3D DATACUBE FROM THE MONOCHROME IMAGE
+    LAUScan forwardDWCTransform(LAUScan scan, int levels = 3); // DERIVE THE FORWARD DWT+DCT TRANSFORM OF THE 3D DATACUBE
+    LAUScan reverseDWCTransform(LAUScan scan, int levels = 3); // DERIVE THE INVERSE DWT+DCT TRANSFORM OF THE 3D DATACUBE
+    LAUScan forwardCodedAperture(LAUScan scan);                // GENERATE THE MONOCHROME IMAGE FROM THE 3D DATACUBE USING THE CODED APERTURE
+    LAUScan reverseCodedAperture(LAUScan scan);                // GENERATE THE 3D DATACUBE FROM THE MONOCHROME IMAGE USING THE CODED APERTURE
 
     LAUScan forwardTransform(LAUScan scan)
     {
@@ -198,17 +198,11 @@ private:
     QOpenGLFramebufferObject *fboDataCubeA, *fboDataCubeB;
     QOpenGLFramebufferObject *fboCodeAperLeft, *fboCodeAperRight, *fboSpectralModel;
 
-    QOpenGLFramebufferObject *fboDWTa, *fboDWTb, *fboDWTc, *fboDWTd, *fboDWTe, *fboDWTf;
-    QOpenGLFramebufferObject *fboDWT, *fboDWTA, *fboDWTAA, *fboDWTAAA;
-
     QOpenGLShaderProgram prgrmForwardDWTx, prgrmForwardDWTy;
     QOpenGLShaderProgram prgrmForwardDCT, prgrmReverseDCT;
     QOpenGLShaderProgram prgrmReverseDWTx, prgrmReverseDWTy;
     QOpenGLShaderProgram prgrmForwardCodedAperture, prgrmReverseCodedAperture;
     QOpenGLShaderProgram prgrmU, prgrmV, prgrmAccumMSE, prgrmAccumSUM, prgrmAccumMAX, prgrmAccumMIN;
-
-    QList<QSize> dwtBlockSizes;
-    QList<QPoint> dwtTopLeftCorners;
 
     static float LoD[16], HiD[16], LoR[16], HiR[16];
 
