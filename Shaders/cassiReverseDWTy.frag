@@ -1,13 +1,13 @@
 #version 330 core
 
 uniform sampler2D qt_texture;           // THIS TEXTURE HOLDS THE SCANS
+uniform      vec2 qt_position;          // TOP LEFT COORDINATE OF THE TARGET FBO
 uniform       int qt_height;            // HOLDS THE SIZE OF THE INCOMING TEXTURE
 
-uniform      vec2 qt_offsetA;           // TOP LEFT COORDINATE OF THE LOW-PASS DWT SAMPLES
-uniform      vec2 qt_offsetB;           // TOP LEFT COORDINATE OF THE HIGH-PASS DWT SAMPLES
-uniform      vec2 qt_position;          // TOP LEFT COORDINATE OF THE TARGET FBO
 uniform     float qt_coefficientsA[16]; // HOLDS THE LOW-PASS IDWT FILTER
 uniform     float qt_coefficientsB[16]; // HOLDS THE HIG-PASS IDWT FILTER
+uniform      vec2 qt_offsetA;           // TOP LEFT COORDINATE OF THE LOW-PASS DWT SAMPLES
+uniform      vec2 qt_offsetB;           // TOP LEFT COORDINATE OF THE HIGH-PASS DWT SAMPLES
 
 layout(location = 0, index = 0) out vec4 qt_fragColor;
 

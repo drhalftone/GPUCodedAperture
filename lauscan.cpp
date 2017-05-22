@@ -235,7 +235,7 @@ LAUScan &LAUScan::operator + (const LAUScan &other)
 /****************************************************************************/
 bool LAUScan::save(QString filename)
 {
-    //return (false);
+    return (false);
 
     QSettings settings;
     lastUsedDirectory = settings.value(QString("LAUScan::lastUsedDirectory"), QString()).toString();
