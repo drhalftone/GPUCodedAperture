@@ -814,10 +814,10 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     LAUScan result;
 
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
-    result = forwardDWCTransform(ideal, 4);
-    result = reverseDWCTransform(result, 4);
-    qDebug() << computeMSE(ideal, result);
-    return (result);
+    //result = forwardDWCTransform(ideal);
+    //result = reverseDWCTransform(result);
+    //qDebug() << computeMSE(ideal, result);
+    //return (result);
 
     // INITIALIZE VARIABLES FOR MANAGING GPSR ALGORITHM
     //stopCriterion = SCSmallStepsInNormOfDifference;
@@ -890,7 +890,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
 
     // CALL METHOD FOR CALCULATING THE INITIAL TAU PARAMETER ACCORDING TO  0.5 * max(abs(AT(y)))
     //firstTau = maxAbsValue(vectorXi) / 2.0f;
-    firstTau = 0.15;
+    firstTau = 0.0;
 
     // INITIALIZE U AND V VECTORS (LINES 345 AND 346 OF GPSR_BB SCRIPT)
     LAUScan vectorU = computeVectorU(vectorXi);
@@ -1132,6 +1132,21 @@ LAUScan LAUCodedApertureGLFilter::forwardDWCTransform(LAUScan scan, int levels)
     // CREATE A RETURN SCAN
     LAUScan result = LAUScan();
 
+    // FIND THE LARGEST VALUE OF LEVELS SO THAT THE DECOMPOSED IMAGE
+    // HAS AND INTEGER NUMBER OF ROWS AND COLUMNS
+    if (levels == -1) {
+        int rows = scan.height();
+        int cols = scan.width();
+        while (1) {
+            levels++;
+            if (rows % 2 || cols % 2) {
+                break;
+            }
+            rows /= 2;
+            cols /= 2;
+        }
+    }
+
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
     if (scan.colors() == 8 && makeCurrent(surface)) {
         // COPY FRAME BUFFER TEXTURE FROM GPU TO LOCAL CPU BUFFER
@@ -1303,6 +1318,21 @@ LAUScan LAUCodedApertureGLFilter::reverseDWCTransform(LAUScan scan, int levels)
     // CREATE A RETURN SCAN
     LAUScan result = LAUScan();
 
+    // FIND THE LARGEST VALUE OF LEVELS SO THAT THE DECOMPOSED IMAGE
+    // HAS AND INTEGER NUMBER OF ROWS AND COLUMNS
+    if (levels == -1) {
+        int rows = scan.height();
+        int cols = scan.width();
+        while (1) {
+            levels++;
+            if (rows % 2 || cols % 2) {
+                break;
+            }
+            rows /= 2;
+            cols /= 2;
+        }
+    }
+
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
     if (scan.colors() == 8 && makeCurrent(surface)) {
         // COPY FRAME BUFFER TEXTURE FROM GPU TO LOCAL CPU BUFFER
@@ -1320,7 +1350,6 @@ LAUScan LAUCodedApertureGLFilter::reverseDWCTransform(LAUScan scan, int levels)
                         // BIND THE TEXTURE FROM THE FRAME BUFFER OBJECT
                         glActiveTexture(GL_TEXTURE0);
                         csDataCube->bind();
-                        //glBindTexture(GL_TEXTURE_2D, fboDataCubeB->texture());
                         prgrmReverseDCT.setUniformValue("qt_texture", 0);
 
                         // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA

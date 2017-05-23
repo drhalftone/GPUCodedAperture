@@ -19,7 +19,7 @@ void main()
     // ITERATE THROUGH EACH PIXEL IN THE WINDOW
     qt_fragColor = vec4(0.0, 0.0, 0.0, 0.0);
     for (int col = 0; col < 8; col++){
-        int x = ((coord.x/4)*2 + iterA - 2*(col - 4) + qt_width)%qt_width;
+        int x = ((coord.x/4)*2 + iterA - 2*(col - 4) + 16*qt_width)%qt_width;
 
         qt_fragColor += qt_coefficientsA[2*col + iterB] * texelFetch(qt_texture, ivec2(x, coord.y) + ivec2(qt_offsetA), 0);
         qt_fragColor += qt_coefficientsB[2*col + iterB] * texelFetch(qt_texture, ivec2(x, coord.y) + ivec2(qt_offsetB), 0);

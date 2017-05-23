@@ -166,11 +166,11 @@ public:
     void initialize();
     void setCodedAperture(QImage image);
 
-    LAUScan reconstructDataCube(LAUScan ideal);                // DERIVE THE 3D DATACUBE FROM THE MONOCHROME IMAGE
-    LAUScan forwardDWCTransform(LAUScan scan, int levels = 3); // DERIVE THE FORWARD DWT+DCT TRANSFORM OF THE 3D DATACUBE
-    LAUScan reverseDWCTransform(LAUScan scan, int levels = 3); // DERIVE THE INVERSE DWT+DCT TRANSFORM OF THE 3D DATACUBE
-    LAUScan forwardCodedAperture(LAUScan scan);                // GENERATE THE MONOCHROME IMAGE FROM THE 3D DATACUBE USING THE CODED APERTURE
-    LAUScan reverseCodedAperture(LAUScan scan);                // GENERATE THE 3D DATACUBE FROM THE MONOCHROME IMAGE USING THE CODED APERTURE
+    LAUScan reconstructDataCube(LAUScan ideal);                 // DERIVE THE 3D DATACUBE FROM THE MONOCHROME IMAGE
+    LAUScan forwardDWCTransform(LAUScan scan, int levels = -1); // DERIVE THE FORWARD DWT+DCT TRANSFORM OF THE 3D DATACUBE
+    LAUScan reverseDWCTransform(LAUScan scan, int levels = -1); // DERIVE THE INVERSE DWT+DCT TRANSFORM OF THE 3D DATACUBE
+    LAUScan forwardCodedAperture(LAUScan scan);                 // GENERATE THE MONOCHROME IMAGE FROM THE 3D DATACUBE USING THE CODED APERTURE
+    LAUScan reverseCodedAperture(LAUScan scan);                 // GENERATE THE 3D DATACUBE FROM THE MONOCHROME IMAGE USING THE CODED APERTURE
 
     LAUScan forwardTransform(LAUScan scan)
     {
