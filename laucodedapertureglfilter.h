@@ -204,6 +204,9 @@ private:
     QOpenGLShaderProgram prgrmForwardCodedAperture, prgrmReverseCodedAperture;
     QOpenGLShaderProgram prgrmU, prgrmV, prgrmAccumMSE, prgrmAccumSUM, prgrmAccumMAX, prgrmAccumMIN;
 
+    QList<QOpenGLFramebufferObject *> spectralMeasurementFBOs;
+    QList<QOpenGLFramebufferObject *> dataCubeFBOs;
+
     static float LoD[16], HiD[16], LoR[16], HiR[16];
 
     StopCriterion stopCriterion;    // type of stopping criterion to use, Default = SCSmallStepsInNormOfDifference
