@@ -13,13 +13,13 @@ layout(location = 0, index = 0) out vec4 qt_fragColor;
 
 void main()
 {
-    ivec2 coord = ivec2(gl_FragCoord.xy - qt_position) - ivec2(0,1);  // FRAGMENT COORDINATE OF SUBJECT PIXEL
-    int   iterB = (coord.y + 2)%2;                                    // IS IT AN EVEN OR ODD IMAGE ROW
+    ivec2 coord = ivec2(gl_FragCoord.xy - qt_position) + ivec2(0, 16*qt_height - 1);  // FRAGMENT COORDINATE OF SUBJECT PIXEL
+    int   iterB = (coord.y + 2)%2;                                                    // IS IT AN EVEN OR ODD IMAGE ROW
 
     // ITERATE THROUGH EACH PIXEL IN THE WINDOW
     qt_fragColor = vec4(0.0, 0.0, 0.0, 0.0);
     for (int row = 0; row < 8; row++){
-        int y = (coord.y/2 - (row - 4) + 16*qt_height)%qt_height;
+        int y = (coord.y/2 - (row - 4))%qt_height;
 
         qt_fragColor += qt_coefficientsA[2*row + iterB] * texelFetch(qt_texture, ivec2(coord.x, y) + ivec2(qt_offsetA), 0);
         qt_fragColor += qt_coefficientsB[2*row + iterB] * texelFetch(qt_texture, ivec2(coord.x, y) + ivec2(qt_offsetB), 0);
