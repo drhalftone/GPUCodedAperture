@@ -36,5 +36,25 @@
         <file>Shaders/cassiReverseCAT.frag</file>
         <file>Shaders/cassiAccumulativeMIN.frag</file>
         <file>Shaders/cassiAccumulativeMIN.vert</file>
+        <file>Shaders/cassiAccumulativeNoneZeros.frag</file>
+        <file>Shaders/cassiAccumulativeNoneZeros.vert</file>
+        <file>Shaders/cassiAdd.frag</file>
+        <file>Shaders/cassiAdd.vert</file>
+        <file>Shaders/cassiSubtract.frag</file>
+        <file>Shaders/cassiSubtract.vert</file>
+        <file>Shaders/cassiInnerProduct.frag</file>
+        <file>Shaders/cassiInnerProduct.vert</file>
+        <file>Shaders/cassiSumScans.frag</file>
+        <file>Shaders/cassiSumScans.vert</file>
+        <file>Shaders/cassiCreateScan.frag</file>
+        <file>Shaders/cassiCreateScan.vert</file>
+        <file>Shaders/cassiMultiply.frag</file>
+        <file>Shaders/cassiMultiply.vert</file>
+        <file>Shaders/cassiMax.frag</file>
+        <file>Shaders/cassiMax.vert</file>
+        <file>Shaders/cassiMin.frag</file>
+        <file>Shaders/cassiMin.vert</file>
+        <file>Shaders/cassiAccumulativeABSMAX.frag</file>
+        <file>Shaders/cassiAccumulativeABSMAX.vert</file>
     </qresource>
 </RCC>

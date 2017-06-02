@@ -17,7 +17,18 @@ void main()
     qt_fragColor = vec4(0.0, 0.0, 0.0, 0.0);
     for (int col = 0; col < 16; col++){
         qt_fragColor += qt_coefficients[col] * texelFetch(qt_texture, ivec2((coord.x - 2*(col - 8) + 16*qt_width)%qt_width, coord.y), 0);
+       // qt_fragColor += qt_coefficients[col] * texelFetch(qt_texture, ivec2(mod((coord.x - 2*(col - 8) + 16*qt_width), qt_width), coord.y), 0);
+
+   //     qt_fragColor.r = float (coord.x - 2*(col - 8) );
+   //     qt_fragColor.g = float (coord.x - 2*(col - 8) + 16*qt_width );
+   //     qt_fragColor.b = float ( mod((coord.x - 2*(col - 8) + 16*qt_width), qt_width) );
+   //     qt_fragColor.a = float ( texelFetch(qt_texture, ivec2(mod((coord.x - 2*(col - 8) + 16*qt_width), qt_width), coord.y), 0).r );
     }
+//    qt_fragColor.r = gl_FragCoord.x;
+//   qt_fragColor.g = gl_FragCoord.y;
+//    qt_fragColor.b = float (coord.x);
+//    qt_fragColor.a = float (coord.y);
 
     return;
 }
+

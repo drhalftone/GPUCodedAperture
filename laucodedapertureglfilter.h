@@ -182,6 +182,26 @@ public:
         return (reverseCodedAperture(reverseDWCTransform(scan)));
     }
 
+    //GPU VERSION
+    LAUScan reconstructDataCubeGPU(LAUScan ideal);
+    LAUScan firstreverseDWCTransform(QOpenGLFramebufferObject *fbo, int levels = -1);
+    QOpenGLFramebufferObject * firstreverseCodedAperture(LAUScan scan);
+    QOpenGLFramebufferObject * firstforwardDWCTransform(LAUScan scan, int levels = -1);
+    QOpenGLFramebufferObject * forwardDWCTransform(QOpenGLFramebufferObject *fbo, int levels = -1);
+    QOpenGLFramebufferObject * reverseDWCTransform(QOpenGLFramebufferObject *fbo, int levels = -1);
+    QOpenGLFramebufferObject * forwardCodedAperture(QOpenGLFramebufferObject *fbo);
+    QOpenGLFramebufferObject * reverseCodedAperture(QOpenGLFramebufferObject *fbo);
+
+    QOpenGLFramebufferObject * forwardTransform(QOpenGLFramebufferObject *fbo)
+    {
+        return (forwardDWCTransform(forwardCodedAperture( fbo)));
+    }
+
+    QOpenGLFramebufferObject * reverseTransform(QOpenGLFramebufferObject *fbo)
+    {
+        return (reverseCodedAperture(reverseDWCTransform( fbo)));
+    }
+
 private:
     unsigned int numCols, numRows;
 
@@ -194,7 +214,7 @@ private:
     QOpenGLTexture *dataCube, *csDataCube, *spectralMeasurement;
     QOpenGLTexture *txtScalarA, *txtScalarB, *txtCodeAper;
 
-    QOpenGLFramebufferObject *fboScalarA, *fboScalarB, *fboScalarC;
+    QOpenGLFramebufferObject *fboScalarA, *fboScalarB, *fboScalarC, *fboSpectralScalarA, *fboSpectralScalarB, *fboSpectralScalarC;
     QOpenGLFramebufferObject *fboDataCubeA, *fboDataCubeB;
     QOpenGLFramebufferObject *fboCodeAperLeft, *fboCodeAperRight, *fboSpectralModel;
 
@@ -202,7 +222,8 @@ private:
     QOpenGLShaderProgram prgrmForwardDCT, prgrmReverseDCT;
     QOpenGLShaderProgram prgrmReverseDWTx, prgrmReverseDWTy;
     QOpenGLShaderProgram prgrmForwardCodedAperture, prgrmReverseCodedAperture;
-    QOpenGLShaderProgram prgrmU, prgrmV, prgrmAccumMSE, prgrmAccumSUM, prgrmAccumMAX, prgrmAccumMIN;
+    QOpenGLShaderProgram prgrmU, prgrmV, prgrmAccumMSE, prgrmAccumNZE, prgrmAccumSUM, prgrmAccumMAX, prgrmAccumMIN;
+    QOpenGLShaderProgram prgrmSubtract, prgrmAdd, prgrmInnerProduct, prgrmSumScans, prgrmCreateScan, prgrmMultiply, prgrmMax, prgrmMin, prgrmAbsMax;
 
     QList<QOpenGLFramebufferObject *> spectralMeasurementFBOs;
     QList<QOpenGLFramebufferObject *> dataCubeFBOs;
@@ -234,6 +255,7 @@ private:
     void initializeShaders();
     void initializeTextures();
     void initializeVertices();
+    void keepinsertList();
 
     LAUScan computeVectorU(LAUScan scan);
     LAUScan computeVectorV(LAUScan scan);
@@ -250,6 +272,26 @@ private:
     float maxAbsValue(LAUScan scan);
     float sumAbsValue(LAUScan scan);
     int nonZeroElements(LAUScan scan);
+
+    //GPU VERSION
+    QOpenGLFramebufferObject * computeVectorU(QOpenGLFramebufferObject *fbo);
+    QOpenGLFramebufferObject * computeVectorV(QOpenGLFramebufferObject *fbo);
+
+    QOpenGLFramebufferObject * subtractScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB);
+    QOpenGLFramebufferObject * addScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB);
+    QOpenGLFramebufferObject * multiplyScans(float scalar, QOpenGLFramebufferObject *fbo);
+    QOpenGLFramebufferObject * createScan(float tau, QOpenGLFramebufferObject *fbo);
+    QOpenGLFramebufferObject * maxScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB);
+    QOpenGLFramebufferObject * minScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB);
+    QOpenGLFramebufferObject * copyfbo(QOpenGLFramebufferObject *fbo);
+    float computeMSE(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB);
+    float innerProduct(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB);
+    float sumScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB);
+    float objectiveFun(QOpenGLFramebufferObject *fboResidue, QOpenGLFramebufferObject *fboU, QOpenGLFramebufferObject *fboV, float tau);
+    float maxAbsValue(QOpenGLFramebufferObject *fbo);
+    float sumAbsValue(QOpenGLFramebufferObject *fbo);
+    int nonZeroElements(QOpenGLFramebufferObject *fbo);
+
 
 };
 

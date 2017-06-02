@@ -31,5 +31,7 @@ void main()
     qt_fragColor.b = dot(vectors[index + 4], pixelA) + dot(vectors[index + 5], pixelB);
     qt_fragColor.a = dot(vectors[index + 6], pixelA) + dot(vectors[index + 7], pixelB);
 
+      //  qt_fragColor = texelFetch(qt_texture, coord, 0);
+
     return;
 }
