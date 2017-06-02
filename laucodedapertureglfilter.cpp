@@ -927,32 +927,6 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCubeGPU(LAUScan ideal)
     // WE WANT TO GENERATE A CODED APERTURE ENCODING AND THEN RECONSTRUCT THIS SCAN
     // CALCULATING THE MEAN SQUARED ERROR STEP BY STEP
     LAUScan result;
-//                for (unsigned int row = 0; row < ideal.height(); row++) {
-//                    float *buffer = (float *)ideal.constScanLine(row);
-//                    for (unsigned int col = 0; col < ideal.width(); col++) {
-//                        buffer[8 * col + 0] = 0.0f;
-//                        buffer[8 * col + 1] = 0.0f;
-//                        buffer[8 * col + 2] = 0.0f;
-//                        buffer[8 * col + 3] = 0.0f;
-//                        buffer[8 * col + 4] = 0.0f;
-//                        buffer[8 * col + 5] = 0.0f;
-//                        buffer[8 * col + 6] = 0.0f;
-//                        buffer[8 * col + 7] = 0.0f;
-//                        if (row == ideal.height()/2 && col == ideal.width()/2){
-//                      if (col < 64 || col > ideal.width() - 64){
-//                         if (col < 8 ){
-//                       if ((row == 9 && col == 99) || row == 10 && col == 100){
-//                            buffer[8 * col + 0] = 1.0f;
-//                            buffer[8 * col + 1] = 0.0f;
-//                            buffer[8 * col + 2] = 0.0f;
-//                            buffer[8 * col + 3] = 0.0f;
-//                            buffer[8 * col + 4] = 0.0f;
-//                            buffer[8 * col + 5] = 0.0f;
-//                            buffer[8 * col + 6] = 0.0f;
-//                            buffer[8 * col + 7] = 0.0f;
-//                        }
-//                    }
-//                }
 
 
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
@@ -1280,32 +1254,6 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     // WE WANT TO GENERATE A CODED APERTURE ENCODING AND THEN RECONSTRUCT THIS SCAN
     // CALCULATING THE MEAN SQUARED ERROR STEP BY STEP
     LAUScan result;
-//                for (unsigned int row = 0; row < ideal.height(); row++) {
-//                    float *buffer = (float *)ideal.constScanLine(row);
-//                    for (unsigned int col = 0; col < ideal.width(); col++) {
-//                        buffer[8 * col + 0] = 0.0f;
-//                        buffer[8 * col + 1] = 0.0f;
-//                        buffer[8 * col + 2] = 0.0f;
-//                        buffer[8 * col + 3] = 0.0f;
-//                        buffer[8 * col + 4] = 0.0f;
-//                        buffer[8 * col + 5] = 0.0f;
-//                        buffer[8 * col + 6] = 0.0f;
-//                        buffer[8 * col + 7] = 0.0f;
-//                        if (row == ideal.height()/2 && col == ideal.width()/2){
-//                      if (col < 64 || col > ideal.width() - 64){
-//                         if (col < 8 ){
-//                       if ((row == 9 && col == 99) || row == 10 && col == 100){
-//                            buffer[8 * col + 0] = 1.0f;
-//                            buffer[8 * col + 1] = 0.0f;
-//                            buffer[8 * col + 2] = 0.0f;
-//                            buffer[8 * col + 3] = 0.0f;
-//                            buffer[8 * col + 4] = 0.0f;
-//                            buffer[8 * col + 5] = 0.0f;
-//                            buffer[8 * col + 6] = 0.0f;
-//                            buffer[8 * col + 7] = 0.0f;
-//                        }
-//                    }
-//                }
 
 
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
