@@ -968,7 +968,6 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCubeGPU(LAUScan ideal)
     QOpenGLFramebufferObject * fboZ = spectralMeasurementFBOs.takeFirst();
     fboZ = reverseCodedAperture(fboW);
 
-
     // NOW CALCULATE THE INITIAL ESTIMATE (LINE 290 OF GPSR_BB SCRIPT)
     //LAUScan vectorXi = forwardTransform(vectorY);
     //LAUScan vectorX = forwardTransform(vectorY);
