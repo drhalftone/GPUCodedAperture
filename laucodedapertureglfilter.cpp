@@ -658,6 +658,11 @@ void LAUCodedApertureGLFilter::initializeShaders()
     prgrmAbsMax.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiAccumulativeABSMAX.frag");
     prgrmAbsMax.link();
 
+    prgrmCopyScan.addShaderFromSourceFile(QOpenGLShader::Vertex,   ":/Shaders/Shaders/cassiCopyScan.vert");
+    prgrmCopyScan.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/Shaders/Shaders/cassiCopyScan.frag");
+    prgrmCopyScan.link();
+
+
     setlocale(LC_ALL, "");
 }
 
@@ -761,7 +766,7 @@ void LAUCodedApertureGLFilter::initializeTextures()
 
     // CREATE A LIST OF FBOS FOR USE AS NEEDED SO THAT ANYTHING IN THE LIST
     // IS AVAILABLE FOR USE WHILE ANYTHING NOT IN THE LIST IS BEING USED
-    for (int n = 0; n < 62; n++) {
+    for (int n = 0; n < 40; n++) {
     QOpenGLFramebufferObject *fbo = NULL;
     QOpenGLFramebufferObjectFormat fboFormat;
     fboFormat.setInternalTextureFormat(GL_RGBA32F);
@@ -771,7 +776,7 @@ void LAUCodedApertureGLFilter::initializeTextures()
     dataCubeFBOs << fbo;
     }
 
-    for (int n = 0; n < 17; n++) {
+    for (int n = 0; n < 10; n++) {
     QOpenGLFramebufferObject *fbo = NULL;
     QOpenGLFramebufferObjectFormat fboFormat;
 
@@ -782,31 +787,6 @@ void LAUCodedApertureGLFilter::initializeTextures()
     }
 }
 
-/****************************************************************************/
-/****************************************************************************/
-/****************************************************************************/
-void LAUCodedApertureGLFilter::keepinsertList()
-{
-    for (int n = 0; n < 43; n++) {
-    QOpenGLFramebufferObject *fbo = NULL;
-    QOpenGLFramebufferObjectFormat fboFormat;
-    fboFormat.setInternalTextureFormat(GL_RGBA32F);
-
-    fbo = new QOpenGLFramebufferObject(2 * numCols, numRows, fboFormat);
-    fbo->release();
-    dataCubeFBOs << fbo;
-    }
-
-    for (int n = 0; n < 7; n++) {
-    QOpenGLFramebufferObject *fbo = NULL;
-    QOpenGLFramebufferObjectFormat fboFormat;
-
-    fboFormat.setInternalTextureFormat(GL_R32F);
-    fbo = new QOpenGLFramebufferObject(numCols, numRows, fboFormat);
-    fbo->release();
-    spectralMeasurementFBOs << fbo;
-    }
-}
 
 /****************************************************************************/
 /****************************************************************************/
@@ -928,7 +908,6 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCubeGPU(LAUScan ideal)
     // CALCULATING THE MEAN SQUARED ERROR STEP BY STEP
     LAUScan result;
 
-
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
     //result = forwardDWCTransform(ideal);
     //result = reverseDWCTransform(result);
@@ -958,23 +937,29 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCubeGPU(LAUScan ideal)
     // SO LET'S START BY GENERATING OUR CODED APERTURE ENCODING
     //LAUScan vectorY = reverseCodedAperture(ideal);
     QOpenGLFramebufferObject * fboY = spectralMeasurementFBOs.takeFirst();
-    fboY = firstreverseCodedAperture(ideal);
+    firstreverseCodedAperture(ideal, fboY);
 
     //LAUScan vectorW = forwardCodedAperture(vectorY);
     QOpenGLFramebufferObject * fboW = dataCubeFBOs.takeFirst();
-    fboW = forwardCodedAperture(fboY);
+    forwardCodedAperture(fboY, fboW);
 
     //LAUScan vectorZ = reverseCodedAperture(vectorW);
     QOpenGLFramebufferObject * fboZ = spectralMeasurementFBOs.takeFirst();
-    fboZ = reverseCodedAperture(fboW);
+    reverseCodedAperture(fboW, fboZ);
+
 
     // NOW CALCULATE THE INITIAL ESTIMATE (LINE 290 OF GPSR_BB SCRIPT)
     //LAUScan vectorXi = forwardTransform(vectorY);
     //LAUScan vectorX = forwardTransform(vectorY);
     QOpenGLFramebufferObject *  fboXi = dataCubeFBOs.takeFirst();
-    fboXi = forwardTransform(fboY);
+    QOpenGLFramebufferObject *  fbooutcodedapt = dataCubeFBOs.takeFirst();
+    forwardCodedAperture( fboY, fbooutcodedapt);
+    forwardDWCTransform(fbooutcodedapt, fboXi);
+
     QOpenGLFramebufferObject *  fboX = dataCubeFBOs.takeFirst();
-    fboX = forwardTransform(fboY);
+    forwardCodedAperture( fboY, fbooutcodedapt);
+    forwardDWCTransform(fbooutcodedapt, fboX);
+    dataCubeFBOs.append(fbooutcodedapt);
 
     // CALL METHOD FOR CALCULATING THE INITIAL TAU PARAMETER ACCORDING TO  0.5 * max(abs(AT(y)))
     //firstTau = maxAbsValue(vectorXi) / 2.0f;
@@ -983,11 +968,11 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCubeGPU(LAUScan ideal)
     // INITIALIZE U AND V VECTORS (LINES 345 AND 346 OF GPSR_BB SCRIPT)
     //LAUScan vectorU = computeVectorU(vectorXi);
     QOpenGLFramebufferObject *  fboU = dataCubeFBOs.takeFirst();
-    fboU = computeVectorU(fboXi);
+    computeVectorU(fboXi, fboU);
 
     //LAUScan vectorV = computeVectorV(vectorXi);
     QOpenGLFramebufferObject *  fboV = dataCubeFBOs.takeFirst();
-    fboV = computeVectorV(fboXi);
+    computeVectorV(fboXi, fboV);
 
     // GET THE NUMBER OF NON-ZERO ELEMENTS IN X (LINE 350 OF GPSR_BB SCRIPT)
     //int nonZeroCount = nonZeroElements(vectorXi);
@@ -996,17 +981,20 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCubeGPU(LAUScan ideal)
     // GET THE GROUND TRUTH X
     //LAUScan grtruth = forwardDWCTransform(ideal);
     QOpenGLFramebufferObject *  fbogrtruth = dataCubeFBOs.takeFirst();
-    fbogrtruth = firstforwardDWCTransform(ideal);
+    firstforwardDWCTransform(ideal, fbogrtruth);
 
     // CALCULATE RESIDUE (LINE 402 OF GPSR_BB SCRIPT)
     //LAUScan vectorAofX = reverseTransform(vectorXi);
     QOpenGLFramebufferObject *  fboAofX = spectralMeasurementFBOs.takeFirst();
-    fboAofX = reverseTransform(fboXi);
+    QOpenGLFramebufferObject * fbooutdwt  = dataCubeFBOs.takeFirst();
+    reverseDWCTransform(fboXi, fbooutdwt);
+    reverseCodedAperture(fbooutdwt, fboAofX);
+    dataCubeFBOs.append(fbooutdwt);
 
     //LAUScan vectorResidue = subtractScans(vectorY, vectorAofX);
     QOpenGLFramebufferObject *  fboResidue = spectralMeasurementFBOs.takeFirst();
-    fboResidue = subtractScans(fboY, fboAofX);
-
+    subtractScans(fboY, fboAofX, fboResidue);
+    spectralMeasurementFBOs.append(fboAofX);
 
     iter = 1;
     alpha = 1;
@@ -1027,7 +1015,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCubeGPU(LAUScan ideal)
     // COMPUTE THE INITIAL GRADIENT AND THE USEFUL QUANTITY RESID_BASE (LINE 452 OF GPSR_BB SCRIPT)
     //LAUScan vectorResidueBase = subtractScans(vectorY, vectorResidue);
     QOpenGLFramebufferObject *  fboResidueBase = spectralMeasurementFBOs.takeFirst();
-    fboResidueBase = subtractScans(fboY, fboResidue);
+    subtractScans(fboY, fboResidue, fboResidueBase);
 
     //CONTROL VARIABLE FOR THE OUTER LOOP AND ITER COUNTER
     int keep_going = 1;
@@ -1037,50 +1025,81 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCubeGPU(LAUScan ideal)
         // CALCULATE THE GRADIENT BASED ON THE FORWARD TRANSFORM OF THE RESIDUE_BASE(LINE 464 OF GPSR_BB SCRIPT)
         //LAUScan vectorGradient = forwardTransform(vectorResidueBase);
         QOpenGLFramebufferObject *  fboGradient = dataCubeFBOs.takeFirst();
-        fboGradient = forwardTransform(fboResidueBase);
+        QOpenGLFramebufferObject *  fbooutcodedapt = dataCubeFBOs.takeFirst();
+        forwardCodedAperture( fboResidueBase, fbooutcodedapt);
+        forwardDWCTransform(fbooutcodedapt, fboGradient);
+        dataCubeFBOs.append(fbooutcodedapt);
+
 
         //LAUScan scantau = createScan(firstTau, vectorGradient);
         QOpenGLFramebufferObject *  fbotau = dataCubeFBOs.takeFirst();
-        fbotau = createScan(firstTau, fboGradient);
+        createScan(firstTau, fboGradient, fbotau);
 
         //LAUScan term = subtractScans(vectorGradient, vectorX);
         QOpenGLFramebufferObject *  fboterm = dataCubeFBOs.takeFirst();
-        fboterm = subtractScans(fboGradient, fboX);
+        subtractScans(fboGradient, fboX, fboterm);
+        dataCubeFBOs.append(fboGradient);
 
         //LAUScan gradu = addScans(term, scantau);
         QOpenGLFramebufferObject *  fbogradu = dataCubeFBOs.takeFirst();
-        fbogradu = addScans(fboterm, fbotau);
+        addScans(fboterm, fbotau, fbogradu);
 
         //LAUScan gradv = subtractScans(scantau, term);
         QOpenGLFramebufferObject *  fbogradv = dataCubeFBOs.takeFirst();
-        fbogradv = subtractScans(fbotau, fboterm);
+        subtractScans(fbotau, fboterm, fbogradv);
+
+        dataCubeFBOs.append(fbotau);
+        dataCubeFBOs.append(fboterm);
 
 
         //PROJECTION AND COMPUTTATION OF SEARCH DIRECTION VECTOR(LINE 471 OF GPSR_BB SCRIPT)
         //LAUScan du = subtractScans(maxScans(subtractScans(vectorU, multiplyScans(alpha, gradu)), createScan(0, gradu)), vectorU);
+        //fbodu = subtractScans(maxScans(subtractScans(fboU, multiplyScans(alpha, fbogradu)), createScan(0, fbogradu)), fboU);
         QOpenGLFramebufferObject *  fbodu = dataCubeFBOs.takeFirst();
-        fbodu = subtractScans(maxScans(subtractScans(fboU, multiplyScans(alpha, fbogradu)), createScan(0, fbogradu)), fboU);
+        QOpenGLFramebufferObject *  fbomul = dataCubeFBOs.takeFirst();
+        QOpenGLFramebufferObject *  fbosub = dataCubeFBOs.takeFirst();
+        QOpenGLFramebufferObject *  fbocrt = dataCubeFBOs.takeFirst();
+        QOpenGLFramebufferObject *  fbomax = dataCubeFBOs.takeFirst();
+        multiplyScans(alpha, fbogradu, fbomul);
+        subtractScans(fboU, fbomul, fbosub);
+        createScan(0, fbogradu, fbocrt);
+        maxScans(fbosub, fbocrt, fbomax);
+        subtractScans(fbomax, fboU, fbodu);
 
         //LAUScan dv = subtractScans(maxScans(subtractScans(vectorV, multiplyScans(alpha, gradv)), createScan(0, gradv)), vectorV);
+        //fbodv = subtractScans(maxScans(subtractScans(fboV, multiplyScans(alpha, fbogradv)), createScan(0, fbogradv)), fboV);
         QOpenGLFramebufferObject *  fbodv = dataCubeFBOs.takeFirst();
-        fbodv = subtractScans(maxScans(subtractScans(fboV, multiplyScans(alpha, fbogradv)), createScan(0, fbogradv)), fboV);
+        multiplyScans(alpha, fbogradv, fbomul);
+        subtractScans(fboV, fbomul, fbosub);
+        createScan(0, fbogradv, fbocrt);
+        maxScans(fbosub, fbocrt, fbomax);
+        subtractScans(fbomax, fboV, fbodv);
+
+        dataCubeFBOs.append(fbomul);
+        dataCubeFBOs.append(fbosub);
+        dataCubeFBOs.append(fbocrt);
+        dataCubeFBOs.append(fbomax);
 
         //LAUScan dx = subtractScans(du, dv);
         QOpenGLFramebufferObject *  fbodx = dataCubeFBOs.takeFirst();
-        fbodx = subtractScans(fbodu, fbodv);
+        subtractScans(fbodu, fbodv, fbodx);
 
         //LAUScan old_u(vectorU);
         QOpenGLFramebufferObject *  fboold_u = dataCubeFBOs.takeFirst();
-        fboold_u = copyfbo(fboU);
+        copyfbo(fboU, fboold_u);
 
         //LAUScan old_v(vectorV);
         QOpenGLFramebufferObject *  fboold_v = dataCubeFBOs.takeFirst();
-        fboold_v = copyfbo(fboV);
+        copyfbo(fboV, fboold_v);
 
         //CALCULATE USEFUL MATRIX-VECTOR PRODUCT INVOLVING dx (LINE 478 OF GPSR_BB SCRIPT)
         //LAUScan auv = reverseTransform(dx);
+        // fboauv = reverseTransform(fbodx);
         QOpenGLFramebufferObject *  fboauv = spectralMeasurementFBOs.takeFirst();
-        fboauv = reverseTransform(fbodx);
+        QOpenGLFramebufferObject * fbooutdwt = dataCubeFBOs.takeFirst();
+        reverseDWCTransform(fbodx, fbooutdwt);
+        reverseCodedAperture(fbooutdwt, fboauv);
+        dataCubeFBOs.append(fbooutdwt);
 
         //float dGd = innerProduct(auv, auv);
         float dGd = innerProduct(fboauv, fboauv);
@@ -1097,25 +1116,36 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCubeGPU(LAUScan ideal)
             lambda = 1;
         }
 
+
         //(LINE 494 OF GPSR_BB SCRIPT)
         //vectorU = addScans(old_u, multiplyScans(lambda, du));
-        fboU = addScans(fboold_u, multiplyScans(lambda, fbodu));
+        //fboU = addScans(fboold_u, multiplyScans(lambda, fbodu));
+        QOpenGLFramebufferObject * fbomul1  = dataCubeFBOs.takeFirst();
+        multiplyScans(lambda, fbodu, fbomul1);
+        addScans(fboold_u, fbomul1, fboU);
+
 
         //vectorV = addScans(old_v, multiplyScans(lambda, dv));
-        fboV = addScans(fboold_v, multiplyScans(lambda, fbodv));
+        //fboV = addScans(fboold_v, multiplyScans(lambda, fbodv));
+        multiplyScans(lambda, fbodv, fbomul1);
+        addScans(fboold_v, fbomul1, fboV);
+        dataCubeFBOs.append(fbomul1);
+
 
         //LAUScan UVmin = minScans(vectorU, vectorV);
         QOpenGLFramebufferObject *  fboUVmin = dataCubeFBOs.takeFirst();
-        fboUVmin = minScans(fboU, fboV);
+        minScans(fboU, fboV, fboUVmin);
 
         //vectorU = subtractScans(vectorU, UVmin);
-        fboU = subtractScans(fboU, fboUVmin);
+        subtractScans(fboU, fboUVmin, fboU);
 
         //vectorV = subtractScans(vectorV, UVmin);
-        fboV = subtractScans(fboV, fboUVmin);
+        subtractScans(fboV, fboUVmin, fboV);
+
+        dataCubeFBOs.append(fboUVmin);
 
         //vectorXi = subtractScans(vectorU, vectorV);
-        fboXi = subtractScans(fboU, fboV);
+        subtractScans(fboU, fboV, fboXi);
 
         //CALCULATE NONZERO PATTERN AND NUMBER OF NONZEROS(LINE 502 OF GPSR_BB SCRIPT)
         int prev_nonZeroCount = nonZeroCount;
@@ -1125,15 +1155,27 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCubeGPU(LAUScan ideal)
 
         //UPDATE RESIDUAL AND FUNCTION(LINE 507 OF GPSR_BB SCRIPT)
         //vectorResidue = subtractScans(subtractScans(vectorY, vectorResidueBase), multiplyScans(lambda, auv));
-        fboResidue = subtractScans(subtractScans(fboY, fboResidueBase), multiplyScans(lambda, fboauv));
+        //fboResidue = subtractScans(subtractScans(fboY, fboResidueBase), multiplyScans(lambda, fboauv));
+        QOpenGLFramebufferObject *  fbosub1 = spectralMeasurementFBOs.takeFirst();
+        QOpenGLFramebufferObject *  fbomul2 = spectralMeasurementFBOs.takeFirst();
+        subtractScans(fboY, fboResidueBase, fbosub1);
+        multiplyScans(lambda, fboauv, fbomul2);
+        subtractScans(fbosub1, fbomul2, fboResidue);
+        spectralMeasurementFBOs.append(fbosub1);
+        spectralMeasurementFBOs.append(fbomul2);
+
 
         float prev_f = f;
         //f = objectiveFun(vectorResidue, vectorU, vectorV, firstTau);
         f = objectiveFun(fboResidue, fboU, fboV, firstTau);
 
+
         // COMPUTER NEW ALPHA(LINE 513 OF GPSR_BB SCRIPT)
         //float dd = innerProduct(du, du) + innerProduct(dv, dv);
         float dd = innerProduct(fbodu, fbodu) + innerProduct(fbodv, fbodv);
+
+        dataCubeFBOs.append(fbodu);
+        dataCubeFBOs.append(fbodv);
 
         if (dGd <= 0) {
             qDebug() << "nonpositive curvature detected dGd = " << dGd;
@@ -1143,7 +1185,13 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCubeGPU(LAUScan ideal)
         }
 
         //LAUScan vectorResidueBase = addScans(vectorResidueBase, multiplyScans(lambda, auv));
-        fboResidueBase = addScans(fboResidueBase, multiplyScans(lambda, fboauv));
+        //fboResidueBase = addScans(fboResidueBase, multiplyScans(lambda, fboauv));
+        QOpenGLFramebufferObject *  fbomul3 = spectralMeasurementFBOs.takeFirst();
+        multiplyScans(lambda, fboauv, fbomul3);
+        addScans(fboResidueBase, fbomul3, fboResidueBase);
+
+        spectralMeasurementFBOs.append(fbomul3);
+        spectralMeasurementFBOs.append(fboauv);
 
         if (verbose) {
             qDebug() << "Iter = " << iter << ", obj = " << f << ", lambda = " << lambda << ", alpha = " << alpha << ", nonezeros = " << nonZeroCount << ", MSE= " << mse;
@@ -1156,7 +1204,18 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCubeGPU(LAUScan ideal)
         // FINAL RECONSTRUCTED SNAPSHOT ON CASSI BY SOLVED X
         result = firstreverseDWCTransform(fboXi);
 
-        keepinsertList();
+
+        if (stopCriterion != 2){
+            dataCubeFBOs.append(fbodx);
+
+        }
+
+        if (stopCriterion != 3){
+            dataCubeFBOs.append(fboold_u);
+            dataCubeFBOs.append(fboold_v);
+            dataCubeFBOs.append(fbogradu);
+            dataCubeFBOs.append(fbogradv);
+        }
 
         //(LINE 539 OF GPSR_BB SCRIPT)
         switch (stopCriterion) {
@@ -1191,16 +1250,30 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCubeGPU(LAUScan ideal)
                 if (verbose) {
                     qDebug() << "Norm(delta x)/norm(x) = " << delta_x_criterion << "target = " << tolA;
                 }
+                dataCubeFBOs.append(fbodx);
                 break;
             }
             // CRITERION BASED ON "LCP" - AGAIN BASED ON THE PREVIOUS ITERATE. MAKE IT RELATIVE TO THE NORM OF X
             case 3: {
-                float CriterionLCP = qMax(maxAbsValue(minScans(fbogradu, fboold_u)), maxAbsValue(minScans(fbogradv, fboold_v)));
+               // float CriterionLCP = qMax(maxAbsValue(minScans(fbogradu, fboold_u)), maxAbsValue(minScans(fbogradv, fboold_v)));
+                QOpenGLFramebufferObject *  fbominu = dataCubeFBOs.takeFirst();
+                QOpenGLFramebufferObject *  fbominv = dataCubeFBOs.takeFirst();
+                minScans(fbogradu, fboold_u, fbominu);
+                minScans(fbogradv, fboold_v, fbominv);
+                float CriterionLCP = qMax(maxAbsValue(fbominu), maxAbsValue(fbominv));
+
                 CriterionLCP = CriterionLCP / qMax(1e-6f, qMax(maxAbsValue(fboold_u), maxAbsValue(fboold_v)));
                 keep_going = (CriterionLCP > tolA);
                 if (verbose) {
                     qDebug() << "LCP = " << CriterionLCP << "target = " << tolA;
                 }
+                dataCubeFBOs.append(fboold_u);
+                dataCubeFBOs.append(fboold_v);
+                dataCubeFBOs.append(fbogradu);
+                dataCubeFBOs.append(fbogradv);
+                dataCubeFBOs.append(fbominu);
+                dataCubeFBOs.append(fbominv);
+
                 break;
             }
             // CRITERION BASED ON THE TARGET VALUE OF TOLA
@@ -1239,9 +1312,21 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCubeGPU(LAUScan ideal)
             qDebug() << "||x||_1 = " << sumAbsValue(fboU) + sumAbsValue(fboV);
             qDebug() << "Objective function = " << f;
             qDebug() << "Number of non-zero components = " << nonZeroCount;
-        }
+       }
     }
-   return (result);
+
+    spectralMeasurementFBOs.append(fboResidue);
+    spectralMeasurementFBOs.append(fboResidueBase);
+    spectralMeasurementFBOs.append(fboY);
+    spectralMeasurementFBOs.append(fboZ);
+    dataCubeFBOs.append(fboU);
+    dataCubeFBOs.append(fboV);
+    dataCubeFBOs.append(fboW);
+    dataCubeFBOs.append(fboXi);
+    dataCubeFBOs.append(fboX);
+    dataCubeFBOs.append(fbogrtruth);
+
+    return (result);
 }
 
 /****************************************************************************/
@@ -1253,7 +1338,6 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     // WE WANT TO GENERATE A CODED APERTURE ENCODING AND THEN RECONSTRUCT THIS SCAN
     // CALCULATING THE MEAN SQUARED ERROR STEP BY STEP
     LAUScan result;
-
 
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
     //result = forwardDWCTransform(ideal);
@@ -1307,6 +1391,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
     // CALCULATE RESIDUE (LINE 402 OF GPSR_BB SCRIPT)
     LAUScan vectorAofX = reverseTransform(vectorXi);
     LAUScan vectorResidue = subtractScans(vectorY, vectorAofX);
+    vectorResidue.save(QString((save_dir) + QString("vectorResidue.tif")));
 
     iter = 1;
     alpha = 1;
@@ -1385,8 +1470,8 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
             alpha = qMin(alphaMax, qMax(alphaMin, dd / dGd));
         }
 
-        vectorResidueBase = addScans(vectorResidueBase, multiplyScans(lambda, auv));
-
+        LAUScan temp_vectorResidueBase = addScans(vectorResidueBase, multiplyScans(lambda, auv));
+        vectorResidueBase = temp_vectorResidueBase;
 
         if (verbose) {
             qDebug() << "Iter = " << iter << ", obj = " << f << ", lambda = " << lambda << ", alpha = " << alpha << ", nonezeros = " << nonZeroCount << ", MSE= " << mse;
@@ -1488,7 +1573,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCube(LAUScan ideal)
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
-QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::firstforwardDWCTransform(LAUScan scan, int levels)
+void  LAUCodedApertureGLFilter::firstforwardDWCTransform(LAUScan scan, QOpenGLFramebufferObject *fboDataCubeB, int levels)
 {
     // CREATE A RETURN SCAN
     //LAUScan result = LAUScan();
@@ -1509,7 +1594,7 @@ QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::firstforwardDWCTransform(L
     }
 
     QOpenGLFramebufferObject * fboDataCubeA  = dataCubeFBOs.takeFirst();
-    QOpenGLFramebufferObject * fboDataCubeB  = dataCubeFBOs.takeFirst();
+    //QOpenGLFramebufferObject * fboDataCubeB  = dataCubeFBOs.takeFirst();
 
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
     if (scan.colors() == 8 && makeCurrent(surface)) {
@@ -1662,14 +1747,15 @@ QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::firstforwardDWCTransform(L
             }
         }
    }
-    // RETURN THE UPDATED SCAN
-    return (fboDataCubeB);
+   dataCubeFBOs.append(fboDataCubeA);
+   // RETURN THE UPDATED SCAN
+  //  return (fboDataCubeB);
 }
 
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
-QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::forwardDWCTransform(QOpenGLFramebufferObject *fbo, int levels)
+void  LAUCodedApertureGLFilter::forwardDWCTransform(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboDataCubeB, int levels)
 {
     // CREATE A RETURN SCAN
     //LAUScan result = LAUScan();
@@ -1690,7 +1776,7 @@ QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::forwardDWCTransform(QOpenG
     }
 
     QOpenGLFramebufferObject * fboDataCubeA  = dataCubeFBOs.takeFirst();
-    QOpenGLFramebufferObject * fboDataCubeB  = dataCubeFBOs.takeFirst();
+    //QOpenGLFramebufferObject * fboDataCubeB  = dataCubeFBOs.takeFirst();
 
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
     if (makeCurrent(surface)) {
@@ -1845,8 +1931,9 @@ QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::forwardDWCTransform(QOpenG
         }
 
     }
+    dataCubeFBOs.append(fboDataCubeA);
     // RETURN THE UPDATED SCAN
-    return (fboDataCubeB);
+//   return (fboDataCubeB);
 }
 /****************************************************************************/
 /****************************************************************************/
@@ -2215,7 +2302,7 @@ LAUScan LAUCodedApertureGLFilter::firstreverseDWCTransform(QOpenGLFramebufferObj
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
-QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::reverseDWCTransform(QOpenGLFramebufferObject *fbo, int levels)
+void LAUCodedApertureGLFilter::reverseDWCTransform(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboDataCubeB, int levels)
 {
     // CREATE A RETURN SCAN
     //LAUScan result = LAUScan();
@@ -2236,7 +2323,7 @@ QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::reverseDWCTransform(QOpenG
     }
 
     QOpenGLFramebufferObject * fboDataCubeA  = dataCubeFBOs.takeFirst();
-    QOpenGLFramebufferObject * fboDataCubeB  = dataCubeFBOs.takeFirst();
+   //QOpenGLFramebufferObject * fboDataCubeB  = dataCubeFBOs.takeFirst();
 
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
     if (makeCurrent(surface)) {
@@ -2380,9 +2467,9 @@ QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::reverseDWCTransform(QOpenG
         // DOWNLOAD THE GPU RESULT BACK TO THE CPU
        //doneCurrent();
     }
-
+    dataCubeFBOs.append(fboDataCubeA);
     // RETURN THE UPDATED SCAN
-    return (fboDataCubeB);
+    //return (fboDataCubeB);
 }
 
 /****************************************************************************/
@@ -2569,11 +2656,11 @@ LAUScan LAUCodedApertureGLFilter::reverseDWCTransform(LAUScan scan, int levels)
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
- QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::forwardCodedAperture(QOpenGLFramebufferObject *fbo)
+void LAUCodedApertureGLFilter::forwardCodedAperture(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject *fboDataCubeA)
 {
     // CREATE AN OUTPUT SCAN
     //LAUScan result = LAUScan();
-     QOpenGLFramebufferObject * fboDataCubeA  = dataCubeFBOs.takeFirst();
+     //QOpenGLFramebufferObject * fboDataCubeA  = dataCubeFBOs.takeFirst();
 
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
      if (makeCurrent(surface)) {
@@ -2617,7 +2704,7 @@ LAUScan LAUCodedApertureGLFilter::reverseDWCTransform(LAUScan scan, int levels)
                 fboDataCubeA->release();
             }
         }
-    return (fboDataCubeA);
+  //  return (fboDataCubeA);
 }
 
 /****************************************************************************/
@@ -2682,12 +2769,12 @@ LAUScan LAUCodedApertureGLFilter::forwardCodedAperture(LAUScan scan)
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
- QOpenGLFramebufferObject * LAUCodedApertureGLFilter::firstreverseCodedAperture(LAUScan scan)
+void LAUCodedApertureGLFilter::firstreverseCodedAperture(LAUScan scan,  QOpenGLFramebufferObject * fboSpectralModel)
 {
     // CREATE AN OUTPUT SCAN
     //LAUScan result = LAUScan();
 
-     QOpenGLFramebufferObject * fboSpectralModel  = spectralMeasurementFBOs.takeFirst();
+     //QOpenGLFramebufferObject * fboSpectralModel  = spectralMeasurementFBOs.takeFirst();
 
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
     if (scan.colors() == 8) {
@@ -2734,17 +2821,17 @@ LAUScan LAUCodedApertureGLFilter::forwardCodedAperture(LAUScan scan)
     }
     // RETURN A NEW MONOCHROME SCAN
 
-    return (fboSpectralModel);
+   // return (fboSpectralModel);
 }
 
  /****************************************************************************/
   /****************************************************************************/
   /****************************************************************************/
- QOpenGLFramebufferObject * LAUCodedApertureGLFilter::reverseCodedAperture(QOpenGLFramebufferObject *fbo)
+void LAUCodedApertureGLFilter::reverseCodedAperture(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboSpectralModel)
   {
       // CREATE AN OUTPUT SCAN
       //LAUScan result = LAUScan();
-     QOpenGLFramebufferObject * fboSpectralModel  = spectralMeasurementFBOs.takeFirst();
+     //QOpenGLFramebufferObject * fboSpectralModel  = spectralMeasurementFBOs.takeFirst();
 
       // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
       if (fbo->width() == 2 * numCols) {
@@ -2791,7 +2878,7 @@ LAUScan LAUCodedApertureGLFilter::forwardCodedAperture(LAUScan scan)
 
           }
       }
-      return (fboSpectralModel);
+   //   return (fboSpectralModel);
   }
 
 
@@ -2857,14 +2944,14 @@ LAUScan LAUCodedApertureGLFilter::reverseCodedAperture(LAUScan scan)
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
-QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::computeVectorU(QOpenGLFramebufferObject *fbo)
+void LAUCodedApertureGLFilter::computeVectorU(QOpenGLFramebufferObject *fbo,  QOpenGLFramebufferObject * fboDataCubeA)
 {
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
     if (fbo->width() != 2* numCols)  {
-        return (0);
+        qDebug()<<"someting wrong with U";
     }
 
-    QOpenGLFramebufferObject * fboDataCubeA  = dataCubeFBOs.takeFirst();
+    //QOpenGLFramebufferObject * fboDataCubeA  = dataCubeFBOs.takeFirst();
 
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
     if (makeCurrent(surface)) {
@@ -2902,7 +2989,7 @@ QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::computeVectorU(QOpenGLFram
             fboDataCubeA->release();
         }
     }
-    return (fboDataCubeA);
+  //  return (fboDataCubeA);
 }
 
 /****************************************************************************/
@@ -2962,14 +3049,14 @@ LAUScan LAUCodedApertureGLFilter::computeVectorU(LAUScan scan)
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
-QOpenGLFramebufferObject * LAUCodedApertureGLFilter::computeVectorV(QOpenGLFramebufferObject *fbo)
+void LAUCodedApertureGLFilter::computeVectorV(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject *fboDataCubeB)
 {
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
     if (fbo->width() != 2* numCols)  {
-        return (0);
+        qDebug()<<"someting wrong with V";
     }
 
-    QOpenGLFramebufferObject * fboDataCubeB  = dataCubeFBOs.takeFirst();
+    //QOpenGLFramebufferObject * fboDataCubeB  = dataCubeFBOs.takeFirst();
 
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
     if (makeCurrent(surface)) {
@@ -3008,7 +3095,7 @@ QOpenGLFramebufferObject * LAUCodedApertureGLFilter::computeVectorV(QOpenGLFrame
         }
 
     }
-    return (fboDataCubeB);
+ //   return (fboDataCubeB);
 }
 
 /****************************************************************************/
@@ -3920,11 +4007,11 @@ float LAUCodedApertureGLFilter::innerProduct(LAUScan scanA, LAUScan scanB)
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
-QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::subtractScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB)
+void LAUCodedApertureGLFilter::subtractScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB, QOpenGLFramebufferObject *fboout)
 {
     if (fboA->width() == 2* numCols)  {
 
-        QOpenGLFramebufferObject * fboDataCubeA  = dataCubeFBOs.takeFirst();
+        //QOpenGLFramebufferObject * fboDataCubeA  = dataCubeFBOs.takeFirst();
 
         // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
         if (makeCurrent(surface)) {
@@ -3933,12 +4020,12 @@ QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::subtractScans(QOpenGLFrame
 
             // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
             // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
-            if (fboDataCubeA->bind()) {
+            if (fboout->bind()) {
                 if (prgrmSubtract.bind()) {
                     if (vertexBuffer.bind()) {
                         if (indexBuffer.bind()) {
                             // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                            glViewport(0, 0, fboDataCubeA->width(), fboDataCubeA->height());
+                            glViewport(0, 0, fboout->width(), fboout->height());
                             //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                             // BIND THE TEXTURES FOR THE FILTERING OPERATION
@@ -3965,16 +4052,15 @@ QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::subtractScans(QOpenGLFrame
                     }
                     prgrmSubtract.release();
                 }
-                fboDataCubeA->release();
+                fboout->release();
             }
         }
-
-        return (fboDataCubeA);
+   //      return (fboDataCubeA);
     }
 
     else if (fboA->width() == numCols) {
 
-        QOpenGLFramebufferObject *  fboSpectralModel = spectralMeasurementFBOs.takeFirst();
+        //QOpenGLFramebufferObject *  fboSpectralModel = spectralMeasurementFBOs.takeFirst();
 
         // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
         if (makeCurrent(surface)) {
@@ -3983,12 +4069,12 @@ QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::subtractScans(QOpenGLFrame
 
             // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
             // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
-            if (fboSpectralModel->bind()) {
+            if (fboout->bind()) {
                 if (prgrmSubtract.bind()) {
                     if (vertexBuffer.bind()) {
                         if (indexBuffer.bind()) {
                             // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                            glViewport(0, 0, fboSpectralModel->width(), fboSpectralModel->height());
+                            glViewport(0, 0, fboout->width(), fboout->height());
                             //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                             // BIND THE TEXTURES FOR THE FILTERING OPERATION
@@ -4015,10 +4101,10 @@ QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::subtractScans(QOpenGLFrame
                     }
                     prgrmSubtract.release();
                 }
-                fboSpectralModel->release();
+                fboout->release();
             }
         }
-        return (fboSpectralModel);
+       // return (fboout);
     }
 
 }
@@ -4055,11 +4141,11 @@ LAUScan LAUCodedApertureGLFilter::subtractScans(LAUScan scanA, LAUScan scanB)
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
-QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::addScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB)
+void LAUCodedApertureGLFilter::addScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB, QOpenGLFramebufferObject * fboout)
 {
     if (fboA->width() == 2* numCols)  {
 
-        QOpenGLFramebufferObject * fboDataCubeA  = dataCubeFBOs.takeFirst();
+        // QOpenGLFramebufferObject * fboDataCubeA  = dataCubeFBOs.takeFirst();
 
         // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
         if (makeCurrent(surface)) {
@@ -4068,12 +4154,12 @@ QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::addScans(QOpenGLFramebuffe
 
             // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
             // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
-            if (fboDataCubeA->bind()) {
+            if (fboout->bind()) {
                 if (prgrmAdd.bind()) {
                     if (vertexBuffer.bind()) {
                         if (indexBuffer.bind()) {
                             // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                            glViewport(0, 0, fboDataCubeA->width(), fboDataCubeA->height());
+                            glViewport(0, 0, fboout->width(), fboout->height());
                             //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                             // BIND THE TEXTURES FOR THE FILTERING OPERATION
@@ -4100,16 +4186,16 @@ QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::addScans(QOpenGLFramebuffe
                     }
                     prgrmAdd.release();
                 }
-                fboDataCubeA->release();
+                fboout->release();
             }
         }
-        return (fboDataCubeA);
+        // return (fboDataCubeA);
 
     }
 
     else if (fboA->width() == numCols) {
 
-        QOpenGLFramebufferObject *  fboSpectralModel = spectralMeasurementFBOs.takeFirst();
+     //   QOpenGLFramebufferObject *  fboSpectralModel = spectralMeasurementFBOs.takeFirst();
 
         // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
         if (makeCurrent(surface)) {
@@ -4118,12 +4204,12 @@ QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::addScans(QOpenGLFramebuffe
 
             // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
             // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
-            if (fboSpectralModel->bind()) {
+            if (fboout->bind()) {
                 if (prgrmAdd.bind()) {
                     if (vertexBuffer.bind()) {
                         if (indexBuffer.bind()) {
                             // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                            glViewport(0, 0, fboSpectralModel->width(), fboSpectralModel->height());
+                            glViewport(0, 0, fboout->width(), fboout->height());
                             //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                             // BIND THE TEXTURES FOR THE FILTERING OPERATION
@@ -4150,11 +4236,11 @@ QOpenGLFramebufferObject *  LAUCodedApertureGLFilter::addScans(QOpenGLFramebuffe
                     }
                     prgrmAdd.release();
                 }
-                fboSpectralModel->release();
+                fboout->release();
             }
 
         }
-        return (fboSpectralModel);
+     //   return (fboSpectralModel);
 
     }
 }
@@ -4192,11 +4278,11 @@ LAUScan LAUCodedApertureGLFilter::addScans(LAUScan scanA, LAUScan scanB)
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
-QOpenGLFramebufferObject * LAUCodedApertureGLFilter::multiplyScans(float scalar, QOpenGLFramebufferObject *fbo)
+void LAUCodedApertureGLFilter::multiplyScans(float scalar, QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboout)
 {
     if (fbo->width() == 2* numCols)  {
 
-        QOpenGLFramebufferObject * fboDataCubeA  = dataCubeFBOs.takeFirst();
+        //QOpenGLFramebufferObject * fboDataCubeA  = dataCubeFBOs.takeFirst();
 
         // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
         if (makeCurrent(surface)) {
@@ -4205,12 +4291,12 @@ QOpenGLFramebufferObject * LAUCodedApertureGLFilter::multiplyScans(float scalar,
 
             // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
             // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
-            if (fboDataCubeA->bind()) {
+            if (fboout->bind()) {
                 if (prgrmMultiply.bind()) {
                     if (vertexBuffer.bind()) {
                         if (indexBuffer.bind()) {
                             // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                            glViewport(0, 0, fboDataCubeA->width(), fboDataCubeA->height());
+                            glViewport(0, 0, fboout->width(), fboout->height());
                             //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                             // BIND THE TEXTURES FOR THE FILTERING OPERATION
@@ -4233,16 +4319,16 @@ QOpenGLFramebufferObject * LAUCodedApertureGLFilter::multiplyScans(float scalar,
                     }
                     prgrmMultiply.release();
                 }
-                fboDataCubeA->release();
+                fboout->release();
             }
         }
-        return (fboDataCubeA);
+        //return (fboDataCubeA);
 
     }
 
     else if (fbo->width() == numCols) {
 
-        QOpenGLFramebufferObject *  fboSpectralModel = spectralMeasurementFBOs.takeFirst();
+      // QOpenGLFramebufferObject *  fboSpectralModel = spectralMeasurementFBOs.takeFirst();
 
         // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
         if (makeCurrent(surface)) {
@@ -4251,12 +4337,12 @@ QOpenGLFramebufferObject * LAUCodedApertureGLFilter::multiplyScans(float scalar,
 
             // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
             // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
-            if (fboSpectralModel->bind()) {
+            if (fboout->bind()) {
                 if (prgrmMultiply.bind()) {
                     if (vertexBuffer.bind()) {
                         if (indexBuffer.bind()) {
                             // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                            glViewport(0, 0, fboSpectralModel->width(), fboSpectralModel->height());
+                            glViewport(0, 0, fboout->width(), fboout->height());
                             //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                             // BIND THE TEXTURES FOR THE FILTERING OPERATION
@@ -4279,10 +4365,10 @@ QOpenGLFramebufferObject * LAUCodedApertureGLFilter::multiplyScans(float scalar,
                     }
                     prgrmMultiply.release();
                 }
-                fboSpectralModel->release();
+                fboout->release();
             }
         }
-        return (fboSpectralModel);
+       // return (fboSpectralModel);
 
     }
 
@@ -4320,11 +4406,11 @@ LAUScan LAUCodedApertureGLFilter::multiplyScans(float scalar, LAUScan scanA)
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
-QOpenGLFramebufferObject * LAUCodedApertureGLFilter::maxScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB)
+void LAUCodedApertureGLFilter::maxScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB, QOpenGLFramebufferObject * fboout)
 {
     if (fboA->width() == 2* numCols)  {
 
-        QOpenGLFramebufferObject * fboDataCubeA  = dataCubeFBOs.takeFirst();
+        //QOpenGLFramebufferObject * fboDataCubeA  = dataCubeFBOs.takeFirst();
 
         // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
         if (makeCurrent(surface)) {
@@ -4333,12 +4419,12 @@ QOpenGLFramebufferObject * LAUCodedApertureGLFilter::maxScans(QOpenGLFramebuffer
 
             // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
             // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
-            if (fboDataCubeA->bind()) {
+            if (fboout->bind()) {
                 if (prgrmMax.bind()) {
                     if (vertexBuffer.bind()) {
                         if (indexBuffer.bind()) {
                             // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                            glViewport(0, 0, fboDataCubeA->width(), fboDataCubeA->height());
+                            glViewport(0, 0, fboout->width(), fboout->height());
                             //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                             // BIND THE TEXTURES FOR THE FILTERING OPERATION
@@ -4365,13 +4451,10 @@ QOpenGLFramebufferObject * LAUCodedApertureGLFilter::maxScans(QOpenGLFramebuffer
                     }
                     prgrmMax.release();
                 }
-                fboDataCubeA->release();
+                fboout->release();
             }
         }
-        return (fboDataCubeA);
-    }
-    else {
-        return(0);
+       // return (fboDataCubeA);
     }
 }
 
@@ -4408,11 +4491,11 @@ LAUScan LAUCodedApertureGLFilter::maxScans(LAUScan scanA, LAUScan scanB)
 /****************************************************************************/
 /****************************************************************************/
 /****************************************************************************/
-QOpenGLFramebufferObject * LAUCodedApertureGLFilter::minScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB)
+void LAUCodedApertureGLFilter::minScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB, QOpenGLFramebufferObject * fboout)
 {
     if (fboA->width() == 2* numCols)  {
 
-        QOpenGLFramebufferObject * fboDataCubeA  = dataCubeFBOs.takeFirst();
+      //  QOpenGLFramebufferObject * fboDataCubeA  = dataCubeFBOs.takeFirst();
 
         // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
         if (makeCurrent(surface)) {
@@ -4421,12 +4504,12 @@ QOpenGLFramebufferObject * LAUCodedApertureGLFilter::minScans(QOpenGLFramebuffer
 
             // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
             // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
-            if (fboDataCubeA->bind()) {
+            if (fboout->bind()) {
                 if (prgrmMin.bind()) {
                     if (vertexBuffer.bind()) {
                         if (indexBuffer.bind()) {
                             // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
-                            glViewport(0, 0, fboDataCubeA->width(), fboDataCubeA->height());
+                            glViewport(0, 0, fboout->width(), fboout->height());
                             //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                             // BIND THE TEXTURES FOR THE FILTERING OPERATION
@@ -4453,13 +4536,10 @@ QOpenGLFramebufferObject * LAUCodedApertureGLFilter::minScans(QOpenGLFramebuffer
                     }
                     prgrmMin.release();
                 }
-                fboDataCubeA->release();
+                fboout->release();
             }
         }
-        return (fboDataCubeA);
-    }
-    else {
-        return(0);
+      //  return (fboDataCubeA);
     }
 }
 
@@ -4496,23 +4576,58 @@ LAUScan LAUCodedApertureGLFilter::minScans(LAUScan scanA, LAUScan scanB)
     /****************************************************************************/
     /****************************************************************************/
     /****************************************************************************/
-QOpenGLFramebufferObject * LAUCodedApertureGLFilter::copyfbo(QOpenGLFramebufferObject *fbo)
-  {
-      //QOpenGLFramebufferObject *  fboSpectralModel = spectralMeasurementFBOs.takeFirst();
-      QOpenGLFramebufferObject * fboDataCubeA  = dataCubeFBOs.takeFirst();
-      fboDataCubeA = fbo;
+void LAUCodedApertureGLFilter::copyfbo(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboDataCubeA)
+{
 
-      return (fboDataCubeA);
+    // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
+    if (makeCurrent(surface)) {
+        // COPY FRAME BUFFER TEXTURE FROM GPU TO LOCAL CPU BUFFER
+        //csDataCube->setData(QOpenGLTexture::RGBA, QOpenGLTexture::Float32, (const void *)scan.constPointer());
+
+        // BIND THE FRAME BUFFER OBJECT FOR PROCESSING ALONG WITH
+        // THE SHADER AND VBOS FOR DRAWING TRIANGLES ON SCREEN
+        if (fboDataCubeA->bind()) {
+            if (prgrmCopyScan.bind()) {
+                if (vertexBuffer.bind()) {
+                    if (indexBuffer.bind()) {
+                        // SET THE VIEW PORT TO THE LEFT-HALF OF THE IMAGE FOR LOW-PASS FILTERING
+                        glViewport(0, 0, fboDataCubeA->width(), fboDataCubeA->height());
+                        //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+                        // BIND THE TEXTURES FOR THE FILTERING OPERATION
+                        glActiveTexture(GL_TEXTURE0);
+                        //txtScalarA->bind();
+                        glBindTexture(GL_TEXTURE_2D, fbo->texture());
+                        prgrmCopyScan.setUniformValue("qt_texture", 0);
+
+                        // TELL OPENGL PROGRAMMABLE PIPELINE HOW TO LOCATE VERTEX POSITION DATA
+                        glVertexAttribPointer(prgrmCopyScan.attributeLocation("qt_vertex"), 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+                        prgrmCopyScan.enableAttributeArray("qt_vertex");
+
+                        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+                        // RELEASE THE FRAME BUFFER OBJECT AND ITS ASSOCIATED GLSL PROGRAMS
+                        indexBuffer.release();
+                    }
+                    vertexBuffer.release();
+                }
+                prgrmCopyScan.release();
+            }
+            fboDataCubeA->release();
+        }
+
     }
+    // return (fboDataCubeA);
+  }
 
 
   /****************************************************************************/
   /****************************************************************************/
   /****************************************************************************/
-QOpenGLFramebufferObject * LAUCodedApertureGLFilter::createScan(float tau, QOpenGLFramebufferObject *fbo)
+void LAUCodedApertureGLFilter::createScan(float tau, QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboDataCubeA)
 {
     //QOpenGLFramebufferObject *  fboSpectralModel = spectralMeasurementFBOs.takeFirst();
-    QOpenGLFramebufferObject * fboDataCubeA  = dataCubeFBOs.takeFirst();
+  //  QOpenGLFramebufferObject * fboDataCubeA  = dataCubeFBOs.takeFirst();
 
     // MAKE SURE WE HAVE AN INPUT SCAN WITH EIGHT CHANNELS
     if (makeCurrent(surface)) {
@@ -4553,7 +4668,7 @@ QOpenGLFramebufferObject * LAUCodedApertureGLFilter::createScan(float tau, QOpen
         }
 
     }
-    return (fboDataCubeA);
+    // return (fboDataCubeA);
   }
 
 /****************************************************************************/

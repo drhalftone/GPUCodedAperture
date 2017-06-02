@@ -56,5 +56,7 @@
         <file>Shaders/cassiMin.vert</file>
         <file>Shaders/cassiAccumulativeABSMAX.frag</file>
         <file>Shaders/cassiAccumulativeABSMAX.vert</file>
+        <file>Shaders/cassiCopyScan.frag</file>
+        <file>Shaders/cassiCopyScan.vert</file>
     </qresource>
 </RCC>

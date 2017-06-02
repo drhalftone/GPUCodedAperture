@@ -185,22 +185,23 @@ public:
     //GPU VERSION
     LAUScan reconstructDataCubeGPU(LAUScan ideal);
     LAUScan firstreverseDWCTransform(QOpenGLFramebufferObject *fbo, int levels = -1);
-    QOpenGLFramebufferObject * firstreverseCodedAperture(LAUScan scan);
-    QOpenGLFramebufferObject * firstforwardDWCTransform(LAUScan scan, int levels = -1);
-    QOpenGLFramebufferObject * forwardDWCTransform(QOpenGLFramebufferObject *fbo, int levels = -1);
-    QOpenGLFramebufferObject * reverseDWCTransform(QOpenGLFramebufferObject *fbo, int levels = -1);
-    QOpenGLFramebufferObject * forwardCodedAperture(QOpenGLFramebufferObject *fbo);
-    QOpenGLFramebufferObject * reverseCodedAperture(QOpenGLFramebufferObject *fbo);
+    void firstreverseCodedAperture(LAUScan scan, QOpenGLFramebufferObject * fboout);
+    void firstforwardDWCTransform(LAUScan scan, QOpenGLFramebufferObject * fboDataCubeB, int levels = -1);
+    void forwardDWCTransform(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboout, int levels = -1);
+    void reverseDWCTransform(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboout, int levels = -1);
+    void forwardCodedAperture(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboout);
+    void reverseCodedAperture(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboout);
 
-    QOpenGLFramebufferObject * forwardTransform(QOpenGLFramebufferObject *fbo)
-    {
-        return (forwardDWCTransform(forwardCodedAperture( fbo)));
-    }
+//    void forwardTransform(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fbooutdwt)
+//    {
+//        forwardCodedAperture( fbo, fbooutcodedapt);
+//        forwardDWCTransform(fbooutcodedapt, fbooutdwt);
+//    }
 
-    QOpenGLFramebufferObject * reverseTransform(QOpenGLFramebufferObject *fbo)
-    {
-        return (reverseCodedAperture(reverseDWCTransform( fbo)));
-    }
+//    void reverseTransform(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboout)
+//    {
+//        return (reverseCodedAperture(reverseDWCTransform( fbo, fboout)));
+//    }
 
 private:
     unsigned int numCols, numRows;
@@ -223,7 +224,7 @@ private:
     QOpenGLShaderProgram prgrmReverseDWTx, prgrmReverseDWTy;
     QOpenGLShaderProgram prgrmForwardCodedAperture, prgrmReverseCodedAperture;
     QOpenGLShaderProgram prgrmU, prgrmV, prgrmAccumMSE, prgrmAccumNZE, prgrmAccumSUM, prgrmAccumMAX, prgrmAccumMIN;
-    QOpenGLShaderProgram prgrmSubtract, prgrmAdd, prgrmInnerProduct, prgrmSumScans, prgrmCreateScan, prgrmMultiply, prgrmMax, prgrmMin, prgrmAbsMax;
+    QOpenGLShaderProgram prgrmSubtract, prgrmAdd, prgrmInnerProduct, prgrmSumScans, prgrmCreateScan, prgrmMultiply, prgrmMax, prgrmMin, prgrmAbsMax, prgrmCopyScan;
 
     QList<QOpenGLFramebufferObject *> spectralMeasurementFBOs;
     QList<QOpenGLFramebufferObject *> dataCubeFBOs;
@@ -255,7 +256,6 @@ private:
     void initializeShaders();
     void initializeTextures();
     void initializeVertices();
-    void keepinsertList();
 
     LAUScan computeVectorU(LAUScan scan);
     LAUScan computeVectorV(LAUScan scan);
@@ -274,16 +274,16 @@ private:
     int nonZeroElements(LAUScan scan);
 
     //GPU VERSION
-    QOpenGLFramebufferObject * computeVectorU(QOpenGLFramebufferObject *fbo);
-    QOpenGLFramebufferObject * computeVectorV(QOpenGLFramebufferObject *fbo);
+    void computeVectorU(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboout);
+    void computeVectorV(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboout);
 
-    QOpenGLFramebufferObject * subtractScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB);
-    QOpenGLFramebufferObject * addScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB);
-    QOpenGLFramebufferObject * multiplyScans(float scalar, QOpenGLFramebufferObject *fbo);
-    QOpenGLFramebufferObject * createScan(float tau, QOpenGLFramebufferObject *fbo);
-    QOpenGLFramebufferObject * maxScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB);
-    QOpenGLFramebufferObject * minScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB);
-    QOpenGLFramebufferObject * copyfbo(QOpenGLFramebufferObject *fbo);
+    void subtractScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB, QOpenGLFramebufferObject * fboout);
+    void addScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB, QOpenGLFramebufferObject * fboout);
+    void multiplyScans(float scalar, QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboout);
+    void createScan(float tau, QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboout);
+    void maxScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB, QOpenGLFramebufferObject * fboout);
+    void minScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB, QOpenGLFramebufferObject * fboout);
+    void copyfbo(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboout);
     float computeMSE(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB);
     float innerProduct(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB);
     float sumScans(QOpenGLFramebufferObject *fboA, QOpenGLFramebufferObject *fboB);
