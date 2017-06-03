@@ -766,7 +766,7 @@ void LAUCodedApertureGLFilter::initializeTextures()
 
     // CREATE A LIST OF FBOS FOR USE AS NEEDED SO THAT ANYTHING IN THE LIST
     // IS AVAILABLE FOR USE WHILE ANYTHING NOT IN THE LIST IS BEING USED
-    for (int n = 0; n < 40; n++) {
+    for (int n = 0; n < 15; n++) {
     QOpenGLFramebufferObject *fbo = NULL;
     QOpenGLFramebufferObjectFormat fboFormat;
     fboFormat.setInternalTextureFormat(GL_RGBA32F);
@@ -776,7 +776,7 @@ void LAUCodedApertureGLFilter::initializeTextures()
     dataCubeFBOs << fbo;
     }
 
-    for (int n = 0; n < 10; n++) {
+    for (int n = 0; n < 8; n++) {
     QOpenGLFramebufferObject *fbo = NULL;
     QOpenGLFramebufferObjectFormat fboFormat;
 
