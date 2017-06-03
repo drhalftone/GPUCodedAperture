@@ -2295,6 +2295,8 @@ LAUScan LAUCodedApertureGLFilter::firstreverseDWCTransform(QOpenGLFramebufferObj
        //doneCurrent();
     }
 
+    dataCubeFBOs.append(fboDataCubeA);
+    dataCubeFBOs.append(fboDataCubeB);
     // RETURN THE UPDATED SCAN
     return (result);
 }
