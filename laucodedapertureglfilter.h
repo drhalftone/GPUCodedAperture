@@ -194,8 +194,7 @@ public:
 
 //    void forwardTransform(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fbooutdwt)
 //    {
-//        forwardCodedAperture( fbo, fbooutcodedapt);
-//        forwardDWCTransform(fbooutcodedapt, fbooutdwt);
+//        return (forwardCodedAperture(forwardDWCTransform( fbo, fboout)));
 //    }
 
 //    void reverseTransform(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboout)
