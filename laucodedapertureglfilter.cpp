@@ -921,7 +921,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCubeGPU(LAUScan ideal)
     dataCubeFBOs.append(fbooutcodedapt);
 
     // CALL METHOD FOR CALCULATING THE INITIAL TAU PARAMETER ACCORDING TO  0.5 * max(abs(AT(y)))
-    firstTau = 0.38;
+    firstTau = 0.08;
 
     // INITIALIZE U AND V VECTORS (LINES 345 AND 346 OF GPSR_BB SCRIPT)
     QOpenGLFramebufferObject *  fboU = dataCubeFBOs.takeFirst();
