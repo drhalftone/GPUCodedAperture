@@ -166,22 +166,6 @@ public:
     void initialize();
     void setCodedAperture(QImage image);
 
-    LAUScan reconstructDataCube(LAUScan ideal);                 // DERIVE THE 3D DATACUBE FROM THE MONOCHROME IMAGE
-    LAUScan forwardDWCTransform(LAUScan scan, int levels = -1); // DERIVE THE FORWARD DWT+DCT TRANSFORM OF THE 3D DATACUBE
-    LAUScan reverseDWCTransform(LAUScan scan, int levels = -1); // DERIVE THE INVERSE DWT+DCT TRANSFORM OF THE 3D DATACUBE
-    LAUScan forwardCodedAperture(LAUScan scan);                 // GENERATE THE MONOCHROME IMAGE FROM THE 3D DATACUBE USING THE CODED APERTURE
-    LAUScan reverseCodedAperture(LAUScan scan);                 // GENERATE THE 3D DATACUBE FROM THE MONOCHROME IMAGE USING THE CODED APERTURE
-
-    LAUScan forwardTransform(LAUScan scan)
-    {
-        return (forwardDWCTransform(forwardCodedAperture(scan)));
-    }
-
-    LAUScan reverseTransform(LAUScan scan)
-    {
-        return (reverseCodedAperture(reverseDWCTransform(scan)));
-    }
-
     //GPU VERSION
     LAUScan reconstructDataCubeGPU(LAUScan ideal);
     LAUScan firstreverseDWCTransform(QOpenGLFramebufferObject *fbo, int levels = -1);
@@ -192,15 +176,6 @@ public:
     void forwardCodedAperture(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboout);
     void reverseCodedAperture(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboout);
 
-//    void forwardTransform(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fbooutdwt)
-//    {
-//        return (forwardCodedAperture(forwardDWCTransform( fbo, fboout)));
-//    }
-
-//    void reverseTransform(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboout)
-//    {
-//        return (reverseCodedAperture(reverseDWCTransform( fbo, fboout)));
-//    }
 
 private:
     unsigned int numCols, numRows;
@@ -255,22 +230,6 @@ private:
     void initializeShaders();
     void initializeTextures();
     void initializeVertices();
-
-    LAUScan computeVectorU(LAUScan scan);
-    LAUScan computeVectorV(LAUScan scan);
-
-    LAUScan subtractScans(LAUScan scanA, LAUScan scanB);
-    LAUScan addScans(LAUScan scanA, LAUScan scanB);
-    LAUScan multiplyScans(float scalar, LAUScan scanB);
-    LAUScan createScan(float tau, LAUScan scan);
-    LAUScan maxScans(LAUScan scanA, LAUScan scanB);
-    LAUScan minScans(LAUScan scanA, LAUScan scanB);
-    float computeMSE(LAUScan scanA, LAUScan scanB);
-    float innerProduct(LAUScan scanA, LAUScan scanB);
-    float objectiveFun(LAUScan vectorResidue, LAUScan vectorU, LAUScan vectorV, float tau);
-    float maxAbsValue(LAUScan scan);
-    float sumAbsValue(LAUScan scan);
-    int nonZeroElements(LAUScan scan);
 
     //GPU VERSION
     void computeVectorU(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboout);
