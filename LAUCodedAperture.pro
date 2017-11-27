@@ -7,12 +7,14 @@ DEFINES  += CASSI
 
 HEADERS  += laucodedapertureglfilter.h \
             laumemoryobject.h \
-            lauscan.h
+            lauscan.h \
+            lauabstractgpsrobject.h
 
 SOURCES  += main.cpp \
             laucodedapertureglfilter.cpp \
             laumemoryobject.cpp \
-            lauscan.cpp
+            lauscan.cpp \
+            lauabstractgpsrobject.cpp
 
 RESOURCES += cassi.qrc
 
