@@ -884,7 +884,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCubeGPU(LAUScan ideal)
     stopCriterion = StopCriterion(1);
     initialization = InitAllZeros;
     debias = false;
-    verbose = true;
+    verbose = false;
     monotone = true;
     continuation = false;
     tolA = 0.01;
@@ -921,7 +921,7 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCubeGPU(LAUScan ideal)
     dataCubeFBOs.append(fbooutcodedapt);
 
     // CALL METHOD FOR CALCULATING THE INITIAL TAU PARAMETER ACCORDING TO  0.5 * max(abs(AT(y)))
-    firstTau = 0.38;
+    firstTau = 0.20;
 
     // INITIALIZE U AND V VECTORS (LINES 345 AND 346 OF GPSR_BB SCRIPT)
     QOpenGLFramebufferObject *  fboU = dataCubeFBOs.takeFirst();
@@ -1061,11 +1061,11 @@ LAUScan LAUCodedApertureGLFilter::reconstructDataCubeGPU(LAUScan ideal)
         dataCubeFBOs.append(fboUVmin);
         subtractScans(fboU, fboV, fboXi);
 
-        //CALCULATE NONZERO PATTERN AND NUMBER OF NONZEROS(LINE 502 OF GPSR_BB SCRIPT)
+        // CALCULATE NONZERO PATTERN AND NUMBER OF NONZEROS(LINE 502 OF GPSR_BB SCRIPT)
         int prev_nonZeroCount = nonZeroCount;
         int nonZeroCount = nonZeroElements(fboXi);
 
-        //UPDATE RESIDUAL AND FUNCTION(LINE 507 OF GPSR_BB SCRIPT)
+        // UPDATE RESIDUAL AND FUNCTION(LINE 507 OF GPSR_BB SCRIPT)
         QOpenGLFramebufferObject *  fbosub1 = spectralMeasurementFBOs.takeFirst();
         QOpenGLFramebufferObject *  fbomul2 = spectralMeasurementFBOs.takeFirst();
         subtractScans(fboY, fboResidueBase, fbosub1);
