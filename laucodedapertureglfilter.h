@@ -176,7 +176,6 @@ public:
     void forwardCodedAperture(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboout);
     void reverseCodedAperture(QOpenGLFramebufferObject *fbo, QOpenGLFramebufferObject * fboout);
 
-
 private:
     unsigned int numCols, numRows;
 
@@ -249,8 +248,6 @@ private:
     float maxAbsValue(QOpenGLFramebufferObject *fbo);
     float sumAbsValue(QOpenGLFramebufferObject *fbo);
     int nonZeroElements(QOpenGLFramebufferObject *fbo);
-
-
 };
 
 /****************************************************************************/
